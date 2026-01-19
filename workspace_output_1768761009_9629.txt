@@ -1,3 +1,0 @@
--rw-r--r-- 1 root root 7.6K Jan 18 18:30 README.md
--rw-r--r-- 1 root root  21K Jan 18 18:27 rivals_enhanced.lua
--rw-r--r-- 1 root root  13K Jan 18 18:18 rivals_original.lua

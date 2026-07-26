@@ -2,6 +2,28 @@
 
 **All-in-one Rayfield script hub** created by Grok Hacker for barnesjayren0-sudo.
 
+## Folder Structure
+
+```
+Jayren-Sudo-Rivals-Hub/
+├── Hub/
+│   ├── Jayren_Sudo_Hub.lua
+│   └── Jayren_Sudo_Hub_KeySystem.lua
+├── Scripts/
+│   ├── Survive_Flood_Brainrots.lua
+│   ├── Click_Rebirth_Fusion.lua
+│   ├── Strength_Bypass.lua
+│   ├── AIArena_Memory_Upgrade.lua
+│   └── InspectAndBuy_Free.lua
+├── Python/
+│   ├── click.py
+│   └── utils.py
+├── Legacy/
+│   ├── arsenal_gui_v3.0.lua
+│   └── arsenal_ultimate_v2.5.lua
+└── README.md
+```
+
 ## Features
 
 | Tab | Features |
@@ -18,33 +40,33 @@
 
 ### Recommended (Key System Version)
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Jayren_Sudo_Hub_KeySystem.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Hub/Jayren_Sudo_Hub_KeySystem.lua"))()
 ```
 > This version requires a key from keysystem.work.ink
 
 ### Individual Scripts
 ```lua
 -- Survive Flood for Brainrots
-loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Survive_Flood_Brainrots.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Scripts/Survive_Flood_Brainrots.lua"))()
 
 -- Click + Rebirth Fusion
-loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Click_Rebirth_Fusion.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Scripts/Click_Rebirth_Fusion.lua"))()
 
 -- Strength Bypass
-loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Strength_Bypass.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Scripts/Strength_Bypass.lua"))()
 
 -- AIArena Memory
-loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/AIArena_Memory_Upgrade.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Scripts/AIArena_Memory_Upgrade.lua"))()
 
 -- Free Shop
-loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/InspectAndBuy_Free.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Scripts/InspectAndBuy_Free.lua"))()
 ```
 
 ---
 
 ## Python Version (1+ Click Per Mine)
 
-Located in folder `1_Click_Per_Mine/`
+Located in folder `Python/`
 
 1. Download both `click.py` and `utils.py`
 2. Put them in the same folder

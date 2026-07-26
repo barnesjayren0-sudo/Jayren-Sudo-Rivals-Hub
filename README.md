@@ -16,12 +16,18 @@
 
 ## How to Load (Delta Executor)
 
-### Method 1 – Recommended (Hub)
+### Method 1 – Recommended (Key System Version)
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Jayren_Sudo_Hub_KeySystem.lua"))()
+```
+> This version requires a key from keysystem.work.ink
+
+### Method 2 – Direct Hub (No Key)
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Jayren_Sudo_Hub.lua"))()
 ```
 
-### Method 2 – Individual Scripts
+### Method 3 – Individual Scripts
 ```lua
 -- Survive Flood for Brainrots
 loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/Survive_Flood_Brainrots.lua"))()

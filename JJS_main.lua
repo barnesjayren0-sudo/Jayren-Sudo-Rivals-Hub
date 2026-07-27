@@ -1,5 +1,5 @@
 -- JJS_main.lua
--- Moveset Checker + Cooldown Off + Auto Blocker (Mobile)
+-- Cooldown Off + Auto Blocker + Auto Black Flash + Moveset Checker (Mobile)
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -36,9 +36,6 @@ local function toggleCooldownOff(state)
                 end
             end)
         end)
-        print("[JJS] Cooldown Off: ON")
-    else
-        print("[JJS] Cooldown Off: OFF")
     end
 end
 
@@ -48,14 +45,11 @@ local BlockerConnection = nil
 
 local function toggleAutoBlocker(state)
     AutoBlocker = state
-
     if BlockerConnection then
         BlockerConnection:Disconnect()
         BlockerConnection = nil
     end
-
     if AutoBlocker then
-        -- Hide all other players
         BlockerConnection = RunService.Stepped:Connect(function()
             for _, player in pairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer then
@@ -66,9 +60,7 @@ local function toggleAutoBlocker(state)
                 end
             end
         end)
-        print("[JJS] Auto Blocker: ON")
     else
-        -- Restore players
         for _, player in pairs(Players:GetPlayers()) do
             if player ~= LocalPlayer then
                 player:SetAttribute("HidePlayer", false)
@@ -77,16 +69,112 @@ local function toggleAutoBlocker(state)
                 end
             end
         end
-        print("[JJS] Auto Blocker: OFF")
     end
 end
 
--- Also handle new players joining while AutoBlocker is on
 Players.PlayerAdded:Connect(function(player)
     if AutoBlocker and player ~= LocalPlayer then
         player:SetAttribute("HidePlayer", true)
     end
 end)
+
+-- ====================== AUTO BLACK FLASH ======================
+local AutoBlackFlash = false
+local BlackFlashConnection = nil
+
+local function getNearestPlayer()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+
+    local myPos = character.HumanoidRootPart.Position
+    local nearest = nil
+    local shortest = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (player.Character.HumanoidRootPart.Position - myPos).Magnitude
+            if dist < shortest then
+                shortest = dist
+                nearest = player
+            end
+        end
+    end
+    return nearest, shortest
+end
+
+local function doDash()
+    pcall(function()
+        -- Try MovementService Dash
+        local knit = ReplicatedStorage:FindFirstChild("Knit")
+        if knit then
+            knit = knit:FindFirstChild("Knit")
+            if knit then
+                local services = knit:FindFirstChild("Services")
+                if services then
+                    -- MovementService Dash
+                    local move = services:FindFirstChild("MovementService")
+                    if move then
+                        local re = move:FindFirstChild("RE")
+                        if re then
+                            local dash = re:FindFirstChild("Dash")
+                            if dash and dash:IsA("RemoteEvent") then
+                                dash:FireServer()
+                            end
+                            local reset = re:FindFirstChild("ResetDash")
+                            if reset and reset:IsA("RemoteEvent") then
+                                reset:FireServer()
+                            end
+                        end
+                    end
+
+                    -- ItemService Dash
+                    local item = services:FindFirstChild("ItemService")
+                    if item then
+                        local re = item:FindFirstChild("RE")
+                        if re then
+                            local dash = re:FindFirstChild("Dash")
+                            if dash and dash:IsA("RemoteEvent") then
+                                dash:FireServer()
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function toggleBlackFlash(state)
+    AutoBlackFlash = state
+    if BlackFlashConnection then
+        BlackFlashConnection:Disconnect()
+        BlackFlashConnection = nil
+    end
+
+    if AutoBlackFlash then
+        BlackFlashConnection = RunService.Heartbeat:Connect(function()
+            local nearest, dist = getNearestPlayer()
+            if nearest and dist and dist < 50 then
+                -- Face the nearest player then dash
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") and nearest.Character and nearest.Character:FindFirstChild("HumanoidRootPart") then
+                    local myHRP = char.HumanoidRootPart
+                    local targetHRP = nearest.Character.HumanoidRootPart
+
+                    -- Look at target
+                    local direction = (targetHRP.Position - myHRP.Position).Unit
+                    myHRP.CFrame = CFrame.lookAt(myHRP.Position, myHRP.Position + direction)
+
+                    -- Dash
+                    doDash()
+                end
+            end
+        end)
+        print("[JJS] Auto Black Flash: ON")
+    else
+        print("[JJS] Auto Black Flash: OFF")
+    end
+end
 
 -- ====================== MOVESET CHECKER ======================
 local function checkMoveset()
@@ -103,23 +191,13 @@ local function checkMoveset()
         table.insert(results, "Moveset Folder Found!")
         table.insert(results, "")
         table.insert(results, "Characters:")
-
-        local children = movesetFolder:GetChildren()
-        if #children == 0 then
-            table.insert(results, "(Empty)")
-        else
-            for _, child in pairs(children) do
-                table.insert(results, "• " .. child.Name)
-                for _, sub in pairs(child:GetChildren()) do
-                    table.insert(results, "    - " .. sub.Name)
-                end
-            end
+        for _, child in pairs(movesetFolder:GetChildren()) do
+            table.insert(results, "• " .. child.Name)
         end
     else
         table.insert(results, "Could not find Moveset folder!")
     end
 
-    table.insert(results, "")
     table.insert(results, "===============================")
     return table.concat(results, "\n")
 end
@@ -140,21 +218,17 @@ OpenButton.Font = Enum.Font.GothamBold
 OpenButton.TextSize = 16
 OpenButton.Parent = ScreenGui
 
-local OpenCorner = Instance.new("UICorner")
-OpenCorner.CornerRadius = UDim.new(0, 10)
-OpenCorner.Parent = OpenButton
+Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(0, 10)
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0.9, 0, 0.8, 0)
-MainFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
+MainFrame.Size = UDim2.new(0.9, 0, 0.85, 0)
+MainFrame.Position = UDim2.new(0.05, 0, 0.08, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
 MainFrame.Parent = ScreenGui
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
-MainCorner.Parent = MainFrame
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 45)
@@ -165,67 +239,36 @@ Title.Font = Enum.Font.GothamBold
 Title.TextSize = 20
 Title.Parent = MainFrame
 
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 12)
-TitleCorner.Parent = Title
+Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 12)
 
--- Cooldown Button
-local CooldownBtn = Instance.new("TextButton")
-CooldownBtn.Size = UDim2.new(0.9, 0, 0, 45)
-CooldownBtn.Position = UDim2.new(0.05, 0, 0, 55)
-CooldownBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CooldownBtn.Text = "Cooldown Off: OFF"
-CooldownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CooldownBtn.Font = Enum.Font.GothamBold
-CooldownBtn.TextSize = 16
-CooldownBtn.Parent = MainFrame
+-- Buttons
+local function createBtn(text, y, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 42)
+    btn.Position = UDim2.new(0.05, 0, 0, y)
+    btn.BackgroundColor3 = color
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 15
+    btn.Parent = MainFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    return btn
+end
 
-local CooldownCorner = Instance.new("UICorner")
-CooldownCorner.CornerRadius = UDim.new(0, 8)
-CooldownCorner.Parent = CooldownBtn
+local CooldownBtn = createBtn("Cooldown Off: OFF", 55, Color3.fromRGB(200, 50, 50))
+local BlockerBtn = createBtn("Auto Blocker: OFF", 105, Color3.fromRGB(200, 50, 50))
+local BlackFlashBtn = createBtn("Auto Black Flash: OFF", 155, Color3.fromRGB(200, 50, 50))
+local CheckBtn = createBtn("Check Moveset", 205, Color3.fromRGB(0, 140, 255))
 
--- Auto Blocker Button
-local BlockerBtn = Instance.new("TextButton")
-BlockerBtn.Size = UDim2.new(0.9, 0, 0, 45)
-BlockerBtn.Position = UDim2.new(0.05, 0, 0, 110)
-BlockerBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-BlockerBtn.Text = "Auto Blocker: OFF"
-BlockerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-BlockerBtn.Font = Enum.Font.GothamBold
-BlockerBtn.TextSize = 16
-BlockerBtn.Parent = MainFrame
-
-local BlockerCorner = Instance.new("UICorner")
-BlockerCorner.CornerRadius = UDim.new(0, 8)
-BlockerCorner.Parent = BlockerBtn
-
--- Check Moveset Button
-local CheckBtn = Instance.new("TextButton")
-CheckBtn.Size = UDim2.new(0.9, 0, 0, 45)
-CheckBtn.Position = UDim2.new(0.05, 0, 0, 165)
-CheckBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
-CheckBtn.Text = "Check Moveset"
-CheckBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CheckBtn.Font = Enum.Font.GothamBold
-CheckBtn.TextSize = 16
-CheckBtn.Parent = MainFrame
-
-local CheckCorner = Instance.new("UICorner")
-CheckCorner.CornerRadius = UDim.new(0, 8)
-CheckCorner.Parent = CheckBtn
-
--- Results
 local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Size = UDim2.new(0.9, 0, 0, 200)
-ScrollFrame.Position = UDim2.new(0.05, 0, 0, 220)
+ScrollFrame.Size = UDim2.new(0.9, 0, 0, 180)
+ScrollFrame.Position = UDim2.new(0.05, 0, 0, 260)
 ScrollFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 ScrollFrame.ScrollBarThickness = 6
 ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 ScrollFrame.Parent = MainFrame
-
-local ScrollCorner = Instance.new("UICorner")
-ScrollCorner.CornerRadius = UDim.new(0, 8)
-ScrollCorner.Parent = ScrollFrame
+Instance.new("UICorner", ScrollFrame).CornerRadius = UDim.new(0, 8)
 
 local ResultLabel = Instance.new("TextLabel")
 ResultLabel.Size = UDim2.new(1, -10, 0, 0)
@@ -240,22 +283,10 @@ ResultLabel.TextWrapped = true
 ResultLabel.Text = "Tap Check Moveset..."
 ResultLabel.Parent = ScrollFrame
 
--- Close
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0.9, 0, 0, 40)
+local CloseBtn = createBtn("CLOSE", 0, Color3.fromRGB(80, 80, 80))
 CloseBtn.Position = UDim2.new(0.05, 0, 1, -50)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-CloseBtn.Text = "CLOSE"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 15
-CloseBtn.Parent = MainFrame
 
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 8)
-CloseCorner.Parent = CloseBtn
-
--- ====================== BUTTONS ======================
+-- ====================== BUTTON EVENTS ======================
 OpenButton.MouseButton1Click:Connect(function()
     MainFrame.Visible = true
     OpenButton.Visible = false
@@ -267,27 +298,24 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 CooldownBtn.MouseButton1Click:Connect(function()
-    local newState = not CooldownOff
-    toggleCooldownOff(newState)
-    if newState then
-        CooldownBtn.Text = "Cooldown Off: ON"
-        CooldownBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-    else
-        CooldownBtn.Text = "Cooldown Off: OFF"
-        CooldownBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    end
+    local s = not CooldownOff
+    toggleCooldownOff(s)
+    CooldownBtn.Text = s and "Cooldown Off: ON" or "Cooldown Off: OFF"
+    CooldownBtn.BackgroundColor3 = s and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(200, 50, 50)
 end)
 
 BlockerBtn.MouseButton1Click:Connect(function()
-    local newState = not AutoBlocker
-    toggleAutoBlocker(newState)
-    if newState then
-        BlockerBtn.Text = "Auto Blocker: ON"
-        BlockerBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-    else
-        BlockerBtn.Text = "Auto Blocker: OFF"
-        BlockerBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    end
+    local s = not AutoBlocker
+    toggleAutoBlocker(s)
+    BlockerBtn.Text = s and "Auto Blocker: ON" or "Auto Blocker: OFF"
+    BlockerBtn.BackgroundColor3 = s and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(200, 50, 50)
+end)
+
+BlackFlashBtn.MouseButton1Click:Connect(function()
+    local s = not AutoBlackFlash
+    toggleBlackFlash(s)
+    BlackFlashBtn.Text = s and "Auto Black Flash: ON" or "Auto Black Flash: OFF"
+    BlackFlashBtn.BackgroundColor3 = s and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(200, 50, 50)
 end)
 
 CheckBtn.MouseButton1Click:Connect(function()
@@ -297,4 +325,4 @@ CheckBtn.MouseButton1Click:Connect(function()
     ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, ResultLabel.TextBounds.Y + 30)
 end)
 
-print("[JJS Hub] Loaded - Cooldown Off + Auto Blocker + Moveset Checker")
+print("[JJS Hub] Loaded - Cooldown Off | Auto Blocker | Auto Black Flash | Moveset")

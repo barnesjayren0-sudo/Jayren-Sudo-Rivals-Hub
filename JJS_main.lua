@@ -1,57 +1,47 @@
 -- JJS_main.lua
 -- Moveset Checker (Mobile Optimized)
--- Created by Grok for Jayren Sudo Rivals Hub
+-- Path: Players.LocalPlayer.PlayerScripts.Controllers.Moveset
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 
--- Mobile-friendly Moveset Checker
 local function checkMoveset()
-    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    
     local results = {}
     table.insert(results, "===== JJS Moveset Checker =====")
     table.insert(results, "Player: " .. LocalPlayer.Name)
     table.insert(results, "")
-    
-    -- Check common places for moveset data
-    local possiblePlaces = {
-        LocalPlayer:FindFirstChild("Moveset"),
-        LocalPlayer:FindFirstChild("PlayerData"),
-        LocalPlayer:FindFirstChild("Data"),
-        character:FindFirstChild("Moveset"),
-        ReplicatedStorage:FindFirstChild("Movesets"),
-        ReplicatedStorage:FindFirstChild("Modules")
-    }
-    
-    table.insert(results, "Found Folders:")
-    for _, place in pairs(possiblePlaces) do
-        if place then
-            table.insert(results, "• " .. place.Name)
-            for _, child in pairs(place:GetChildren()) do
-                table.insert(results, "   - " .. child.Name)
+
+    local success, movesetFolder = pcall(function()
+        return LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("Controllers"):WaitForChild("Moveset")
+    end)
+
+    if success and movesetFolder then
+        table.insert(results, "Moveset Folder Found!")
+        table.insert(results, "Path: PlayerScripts.Controllers.Moveset")
+        table.insert(results, "")
+        table.insert(results, "Characters / Movesets:")
+
+        local children = movesetFolder:GetChildren()
+        if #children == 0 then
+            table.insert(results, "(Empty)")
+        else
+            for _, child in pairs(children) do
+                table.insert(results, "• " .. child.Name .. " (" .. child.ClassName .. ")")
+
+                -- Show sub children if any
+                for _, sub in pairs(child:GetChildren()) do
+                    table.insert(results, "    - " .. sub.Name)
+                end
             end
         end
+    else
+        table.insert(results, "Could not find Moveset folder!")
+        table.insert(results, "Make sure you are in the correct game.")
     end
-    
+
     table.insert(results, "")
-    table.insert(results, "Character Items:")
-    for _, item in pairs(character:GetChildren()) do
-        if item:IsA("Tool") or item:IsA("Folder") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
-            table.insert(results, "• " .. item.Name)
-        end
-    end
-    
-    table.insert(results, "")
-    table.insert(results, "Backpack:")
-    for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
-        table.insert(results, "• " .. item.Name)
-    end
-    
     table.insert(results, "===============================")
-    
     return table.concat(results, "\n")
 end
 
@@ -61,7 +51,7 @@ ScreenGui.Name = "JJS_MovesetChecker"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
--- Main Frame (bigger for mobile)
+-- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0.9, 0, 0.7, 0)
 MainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
@@ -88,7 +78,7 @@ local TitleCorner = Instance.new("UICorner")
 TitleCorner.CornerRadius = UDim.new(0, 12)
 TitleCorner.Parent = Title
 
--- Scrolling Frame for results (mobile friendly)
+-- Scrolling Frame
 local ScrollFrame = Instance.new("ScrollingFrame")
 ScrollFrame.Size = UDim2.new(1, -20, 1, -120)
 ScrollFrame.Position = UDim2.new(0, 10, 0, 60)
@@ -106,10 +96,10 @@ ResultLabel.TextSize = 16
 ResultLabel.TextXAlignment = Enum.TextXAlignment.Left
 ResultLabel.TextYAlignment = Enum.TextYAlignment.Top
 ResultLabel.TextWrapped = true
-ResultLabel.Text = "Click Check to scan your moveset..."
+ResultLabel.Text = "Tap CHECK to scan your moveset..."
 ResultLabel.Parent = ScrollFrame
 
--- Check Button (big for mobile)
+-- Check Button
 local CheckButton = Instance.new("TextButton")
 CheckButton.Size = UDim2.new(0.45, 0, 0, 45)
 CheckButton.Position = UDim2.new(0.05, 0, 1, -55)
@@ -139,7 +129,7 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseButton
 
--- Open Button (always visible on mobile)
+-- Open Button
 local OpenButton = Instance.new("TextButton")
 OpenButton.Size = UDim2.new(0, 140, 0, 45)
 OpenButton.Position = UDim2.new(0, 15, 0.5, -22)
@@ -154,7 +144,7 @@ local OpenCorner = Instance.new("UICorner")
 OpenCorner.CornerRadius = UDim.new(0, 10)
 OpenCorner.Parent = OpenButton
 
--- Button Functions
+-- Functions
 OpenButton.MouseButton1Click:Connect(function()
     MainFrame.Visible = true
     OpenButton.Visible = false
@@ -172,4 +162,4 @@ CheckButton.MouseButton1Click:Connect(function()
     ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, ResultLabel.TextBounds.Y + 30)
 end)
 
-print("JJS Moveset Checker (Mobile) loaded!")
+print("JJS Moveset Checker loaded! (Mobile)")

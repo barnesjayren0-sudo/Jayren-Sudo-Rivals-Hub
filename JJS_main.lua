@@ -1,18 +1,20 @@
 -- JJS_main.lua
--- Moveset Checker
+-- Moveset Checker (Mobile Optimized)
 -- Created by Grok for Jayren Sudo Rivals Hub
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
 
--- Simple Moveset Checker
+-- Mobile-friendly Moveset Checker
 local function checkMoveset()
     local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
     
-    print("========== JJS Moveset Checker ==========")
-    print("Player:", LocalPlayer.Name)
+    local results = {}
+    table.insert(results, "===== JJS Moveset Checker =====")
+    table.insert(results, "Player: " .. LocalPlayer.Name)
+    table.insert(results, "")
     
     -- Check common places for moveset data
     local possiblePlaces = {
@@ -24,56 +26,150 @@ local function checkMoveset()
         ReplicatedStorage:FindFirstChild("Modules")
     }
     
+    table.insert(results, "Found Folders:")
     for _, place in pairs(possiblePlaces) do
         if place then
-            print("Found:", place:GetFullName())
+            table.insert(results, "• " .. place.Name)
             for _, child in pairs(place:GetChildren()) do
-                print("  -", child.Name, "(", child.ClassName, ")")
+                table.insert(results, "   - " .. child.Name)
             end
         end
     end
     
-    -- Check character tools / abilities
-    print("\nCharacter Tools/Abilities:")
+    table.insert(results, "")
+    table.insert(results, "Character Items:")
     for _, item in pairs(character:GetChildren()) do
         if item:IsA("Tool") or item:IsA("Folder") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
-            print("  -", item.Name, "(", item.ClassName, ")")
+            table.insert(results, "• " .. item.Name)
         end
     end
     
-    -- Check Backpack
-    print("\nBackpack:")
+    table.insert(results, "")
+    table.insert(results, "Backpack:")
     for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
-        print("  -", item.Name, "(", item.ClassName, ")")
+        table.insert(results, "• " .. item.Name)
     end
     
-    print("=========================================")
+    table.insert(results, "===============================")
+    
+    return table.concat(results, "\n")
 end
 
--- Run checker
-checkMoveset()
-
--- Also create a simple GUI button to re-check
+-- Create Mobile GUI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "JJS_MovesetChecker"
-ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
 
-local Button = Instance.new("TextButton")
-Button.Size = UDim2.new(0, 180, 0, 40)
-Button.Position = UDim2.new(0, 20, 0.5, -20)
-Button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-Button.Text = "Check Moveset"
-Button.Font = Enum.Font.GothamBold
-Button.TextSize = 14
-Button.Parent = ScreenGui
+-- Main Frame (bigger for mobile)
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0.9, 0, 0.7, 0)
+MainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Parent = ScreenGui
 
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = Button
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
 
-Button.MouseButton1Click:Connect(function()
-    checkMoveset()
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Title.Text = "JJS Moveset Checker"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 20
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = Title
+
+-- Scrolling Frame for results (mobile friendly)
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -20, 1, -120)
+ScrollFrame.Position = UDim2.new(0, 10, 0, 60)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.ScrollBarThickness = 8
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollFrame.Parent = MainFrame
+
+local ResultLabel = Instance.new("TextLabel")
+ResultLabel.Size = UDim2.new(1, -10, 0, 0)
+ResultLabel.BackgroundTransparency = 1
+ResultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+ResultLabel.Font = Enum.Font.Gotham
+ResultLabel.TextSize = 16
+ResultLabel.TextXAlignment = Enum.TextXAlignment.Left
+ResultLabel.TextYAlignment = Enum.TextYAlignment.Top
+ResultLabel.TextWrapped = true
+ResultLabel.Text = "Click Check to scan your moveset..."
+ResultLabel.Parent = ScrollFrame
+
+-- Check Button (big for mobile)
+local CheckButton = Instance.new("TextButton")
+CheckButton.Size = UDim2.new(0.45, 0, 0, 45)
+CheckButton.Position = UDim2.new(0.05, 0, 1, -55)
+CheckButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+CheckButton.Text = "CHECK"
+CheckButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CheckButton.Font = Enum.Font.GothamBold
+CheckButton.TextSize = 18
+CheckButton.Parent = MainFrame
+
+local CheckCorner = Instance.new("UICorner")
+CheckCorner.CornerRadius = UDim.new(0, 8)
+CheckCorner.Parent = CheckButton
+
+-- Close Button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0.45, 0, 0, 45)
+CloseButton.Position = UDim2.new(0.5, 0, 1, -55)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.Text = "CLOSE"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 18
+CloseButton.Parent = MainFrame
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseButton
+
+-- Open Button (always visible on mobile)
+local OpenButton = Instance.new("TextButton")
+OpenButton.Size = UDim2.new(0, 140, 0, 45)
+OpenButton.Position = UDim2.new(0, 15, 0.5, -22)
+OpenButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+OpenButton.Text = "Moveset"
+OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenButton.Font = Enum.Font.GothamBold
+OpenButton.TextSize = 16
+OpenButton.Parent = ScreenGui
+
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.CornerRadius = UDim.new(0, 10)
+OpenCorner.Parent = OpenButton
+
+-- Button Functions
+OpenButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenButton.Visible = false
 end)
 
-print("JJS Moveset Checker loaded! Click the button or check console (F9)")
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenButton.Visible = true
+end)
+
+CheckButton.MouseButton1Click:Connect(function()
+    local result = checkMoveset()
+    ResultLabel.Text = result
+    ResultLabel.Size = UDim2.new(1, -10, 0, ResultLabel.TextBounds.Y + 20)
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, ResultLabel.TextBounds.Y + 30)
+end)
+
+print("JJS Moveset Checker (Mobile) loaded!")

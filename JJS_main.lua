@@ -1,5 +1,5 @@
 -- JJS_main.lua
--- Cooldown Off + Auto Blocker + Auto Black Flash + Moveset Checker (Mobile)
+-- Cooldown Off + Auto Blocker + Auto Black Flash (Back) + Moveset Checker
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -78,9 +78,10 @@ Players.PlayerAdded:Connect(function(player)
     end
 end)
 
--- ====================== AUTO BLACK FLASH ======================
+-- ====================== AUTO BLACK FLASH (BACK) ======================
 local AutoBlackFlash = false
 local BlackFlashConnection = nil
+local lastDash = 0
 
 local function getNearestPlayer()
     local character = LocalPlayer.Character
@@ -93,51 +94,46 @@ local function getNearestPlayer()
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local dist = (player.Character.HumanoidRootPart.Position - myPos).Magnitude
-            if dist < shortest then
+            if dist < shortest and dist < 60 then
                 shortest = dist
                 nearest = player
             end
         end
     end
-    return nearest, shortest
+    return nearest
 end
 
 local function doDash()
     pcall(function()
-        -- Try MovementService Dash
         local knit = ReplicatedStorage:FindFirstChild("Knit")
-        if knit then
-            knit = knit:FindFirstChild("Knit")
-            if knit then
-                local services = knit:FindFirstChild("Services")
-                if services then
-                    -- MovementService Dash
-                    local move = services:FindFirstChild("MovementService")
-                    if move then
-                        local re = move:FindFirstChild("RE")
-                        if re then
-                            local dash = re:FindFirstChild("Dash")
-                            if dash and dash:IsA("RemoteEvent") then
-                                dash:FireServer()
-                            end
-                            local reset = re:FindFirstChild("ResetDash")
-                            if reset and reset:IsA("RemoteEvent") then
-                                reset:FireServer()
-                            end
-                        end
-                    end
+        if not knit then return end
+        knit = knit:FindFirstChild("Knit")
+        if not knit then return end
+        local services = knit:FindFirstChild("Services")
+        if not services then return end
 
-                    -- ItemService Dash
-                    local item = services:FindFirstChild("ItemService")
-                    if item then
-                        local re = item:FindFirstChild("RE")
-                        if re then
-                            local dash = re:FindFirstChild("Dash")
-                            if dash and dash:IsA("RemoteEvent") then
-                                dash:FireServer()
-                            end
-                        end
-                    end
+        local move = services:FindFirstChild("MovementService")
+        if move then
+            local re = move:FindFirstChild("RE")
+            if re then
+                local dash = re:FindFirstChild("Dash")
+                if dash and dash:IsA("RemoteEvent") then
+                    dash:FireServer()
+                end
+                local reset = re:FindFirstChild("ResetDash")
+                if reset and reset:IsA("RemoteEvent") then
+                    reset:FireServer()
+                end
+            end
+        end
+
+        local item = services:FindFirstChild("ItemService")
+        if item then
+            local re = item:FindFirstChild("RE")
+            if re then
+                local dash = re:FindFirstChild("Dash")
+                if dash and dash:IsA("RemoteEvent") then
+                    dash:FireServer()
                 end
             end
         end
@@ -153,24 +149,30 @@ local function toggleBlackFlash(state)
 
     if AutoBlackFlash then
         BlackFlashConnection = RunService.Heartbeat:Connect(function()
-            local nearest, dist = getNearestPlayer()
-            if nearest and dist and dist < 50 then
-                -- Face the nearest player then dash
-                local char = LocalPlayer.Character
-                if char and char:FindFirstChild("HumanoidRootPart") and nearest.Character and nearest.Character:FindFirstChild("HumanoidRootPart") then
-                    local myHRP = char.HumanoidRootPart
-                    local targetHRP = nearest.Character.HumanoidRootPart
+            if tick() - lastDash < 0.35 then return end -- small delay so it doesnt spam too hard
 
-                    -- Look at target
-                    local direction = (targetHRP.Position - myHRP.Position).Unit
-                    myHRP.CFrame = CFrame.lookAt(myHRP.Position, myHRP.Position + direction)
+            local target = getNearestPlayer()
+            if not target then return end
 
-                    -- Dash
-                    doDash()
-                end
-            end
+            local char = LocalPlayer.Character
+            local targetChar = target.Character
+            if not char or not targetChar then return end
+
+            local myHRP = char:FindFirstChild("HumanoidRootPart")
+            local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+            if not myHRP or not targetHRP then return end
+
+            -- Get the BACK of the target
+            local backCFrame = targetHRP.CFrame * CFrame.new(0, 0, 4) -- 4 studs behind them
+            local backPos = backCFrame.Position
+
+            -- Teleport / move behind them then face their back and dash
+            myHRP.CFrame = CFrame.lookAt(backPos, targetHRP.Position)
+
+            doDash()
+            lastDash = tick()
         end)
-        print("[JJS] Auto Black Flash: ON")
+        print("[JJS] Auto Black Flash (Back): ON")
     else
         print("[JJS] Auto Black Flash: OFF")
     end
@@ -188,8 +190,6 @@ local function checkMoveset()
     end)
 
     if success and movesetFolder then
-        table.insert(results, "Moveset Folder Found!")
-        table.insert(results, "")
         table.insert(results, "Characters:")
         for _, child in pairs(movesetFolder:GetChildren()) do
             table.insert(results, "• " .. child.Name)
@@ -198,7 +198,6 @@ local function checkMoveset()
         table.insert(results, "Could not find Moveset folder!")
     end
 
-    table.insert(results, "===============================")
     return table.concat(results, "\n")
 end
 
@@ -217,7 +216,6 @@ OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 OpenButton.Font = Enum.Font.GothamBold
 OpenButton.TextSize = 16
 OpenButton.Parent = ScreenGui
-
 Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(0, 10)
 
 local MainFrame = Instance.new("Frame")
@@ -227,7 +225,6 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
 MainFrame.Parent = ScreenGui
-
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
 
 local Title = Instance.new("TextLabel")
@@ -238,10 +235,8 @@ Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 20
 Title.Parent = MainFrame
-
 Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 12)
 
--- Buttons
 local function createBtn(text, y, color)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.9, 0, 0, 42)
@@ -286,7 +281,7 @@ ResultLabel.Parent = ScrollFrame
 local CloseBtn = createBtn("CLOSE", 0, Color3.fromRGB(80, 80, 80))
 CloseBtn.Position = UDim2.new(0.05, 0, 1, -50)
 
--- ====================== BUTTON EVENTS ======================
+-- Events
 OpenButton.MouseButton1Click:Connect(function()
     MainFrame.Visible = true
     OpenButton.Visible = false
@@ -325,4 +320,4 @@ CheckBtn.MouseButton1Click:Connect(function()
     ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, ResultLabel.TextBounds.Y + 30)
 end)
 
-print("[JJS Hub] Loaded - Cooldown Off | Auto Blocker | Auto Black Flash | Moveset")
+print("[JJS Hub] Loaded - Auto Black Flash now targets BACK")

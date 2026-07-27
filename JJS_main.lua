@@ -1,11 +1,51 @@
 -- JJS_main.lua
--- Moveset Checker (Mobile Optimized)
+-- Moveset Checker + Cooldown Off (Mobile)
 -- Path: Players.LocalPlayer.PlayerScripts.Controllers.Moveset
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 
+-- ====================== COOLDOWN OFF ======================
+local CooldownOff = false
+local CooldownConnection = nil
+
+local function toggleCooldownOff(state)
+    CooldownOff = state
+
+    if CooldownConnection then
+        CooldownConnection:Disconnect()
+        CooldownConnection = nil
+    end
+
+    if CooldownOff then
+        -- Spam reset cooldowns
+        CooldownConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            pcall(function()
+                local reset = ReplicatedStorage:FindFirstChild("Keybind")
+                if reset then
+                    reset = reset:FindFirstChild("Creator")
+                    if reset then
+                        reset = reset:FindFirstChild("Reset Cooldowns")
+                        if reset then
+                            if reset:IsA("RemoteEvent") then
+                                reset:FireServer()
+                            elseif reset:IsA("BindableEvent") then
+                                reset:Fire()
+                            end
+                        end
+                    end
+                end
+            end)
+        end)
+        print("[JJS] Cooldown Off: ON")
+    else
+        print("[JJS] Cooldown Off: OFF")
+    end
+end
+
+-- ====================== MOVESET CHECKER ======================
 local function checkMoveset()
     local results = {}
     table.insert(results, "===== JJS Moveset Checker =====")
@@ -18,18 +58,15 @@ local function checkMoveset()
 
     if success and movesetFolder then
         table.insert(results, "Moveset Folder Found!")
-        table.insert(results, "Path: PlayerScripts.Controllers.Moveset")
         table.insert(results, "")
-        table.insert(results, "Characters / Movesets:")
+        table.insert(results, "Characters:")
 
         local children = movesetFolder:GetChildren()
         if #children == 0 then
             table.insert(results, "(Empty)")
         else
             for _, child in pairs(children) do
-                table.insert(results, "• " .. child.Name .. " (" .. child.ClassName .. ")")
-
-                -- Show sub children if any
+                table.insert(results, "• " .. child.Name)
                 for _, sub in pairs(child:GetChildren()) do
                     table.insert(results, "    - " .. sub.Name)
                 end
@@ -37,7 +74,6 @@ local function checkMoveset()
         end
     else
         table.insert(results, "Could not find Moveset folder!")
-        table.insert(results, "Make sure you are in the correct game.")
     end
 
     table.insert(results, "")
@@ -45,96 +81,18 @@ local function checkMoveset()
     return table.concat(results, "\n")
 end
 
--- Create Mobile GUI
+-- ====================== MOBILE GUI ======================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "JJS_MovesetChecker"
+ScreenGui.Name = "JJS_Hub"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
--- Main Frame
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0.9, 0, 0.7, 0)
-MainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-MainFrame.BorderSizePixel = 0
-MainFrame.Visible = false
-MainFrame.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
-UICorner.Parent = MainFrame
-
--- Title
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 50)
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Title.Text = "JJS Moveset Checker"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 20
-Title.Parent = MainFrame
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 12)
-TitleCorner.Parent = Title
-
--- Scrolling Frame
-local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Size = UDim2.new(1, -20, 1, -120)
-ScrollFrame.Position = UDim2.new(0, 10, 0, 60)
-ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.ScrollBarThickness = 8
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-ScrollFrame.Parent = MainFrame
-
-local ResultLabel = Instance.new("TextLabel")
-ResultLabel.Size = UDim2.new(1, -10, 0, 0)
-ResultLabel.BackgroundTransparency = 1
-ResultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-ResultLabel.Font = Enum.Font.Gotham
-ResultLabel.TextSize = 16
-ResultLabel.TextXAlignment = Enum.TextXAlignment.Left
-ResultLabel.TextYAlignment = Enum.TextYAlignment.Top
-ResultLabel.TextWrapped = true
-ResultLabel.Text = "Tap CHECK to scan your moveset..."
-ResultLabel.Parent = ScrollFrame
-
--- Check Button
-local CheckButton = Instance.new("TextButton")
-CheckButton.Size = UDim2.new(0.45, 0, 0, 45)
-CheckButton.Position = UDim2.new(0.05, 0, 1, -55)
-CheckButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-CheckButton.Text = "CHECK"
-CheckButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CheckButton.Font = Enum.Font.GothamBold
-CheckButton.TextSize = 18
-CheckButton.Parent = MainFrame
-
-local CheckCorner = Instance.new("UICorner")
-CheckCorner.CornerRadius = UDim.new(0, 8)
-CheckCorner.Parent = CheckButton
-
--- Close Button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Size = UDim2.new(0.45, 0, 0, 45)
-CloseButton.Position = UDim2.new(0.5, 0, 1, -55)
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseButton.Text = "CLOSE"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.TextSize = 18
-CloseButton.Parent = MainFrame
-
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 8)
-CloseCorner.Parent = CloseButton
-
 -- Open Button
 local OpenButton = Instance.new("TextButton")
-OpenButton.Size = UDim2.new(0, 140, 0, 45)
+OpenButton.Size = UDim2.new(0, 130, 0, 45)
 OpenButton.Position = UDim2.new(0, 15, 0.5, -22)
 OpenButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-OpenButton.Text = "Moveset"
+OpenButton.Text = "JJS Hub"
 OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 OpenButton.Font = Enum.Font.GothamBold
 OpenButton.TextSize = 16
@@ -144,22 +102,133 @@ local OpenCorner = Instance.new("UICorner")
 OpenCorner.CornerRadius = UDim.new(0, 10)
 OpenCorner.Parent = OpenButton
 
--- Functions
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0.9, 0, 0.75, 0)
+MainFrame.Position = UDim2.new(0.05, 0, 0.12, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Title.Text = "JJS Hub"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 22
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = Title
+
+-- Cooldown Toggle Button
+local CooldownBtn = Instance.new("TextButton")
+CooldownBtn.Size = UDim2.new(0.9, 0, 0, 50)
+CooldownBtn.Position = UDim2.new(0.05, 0, 0, 70)
+CooldownBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CooldownBtn.Text = "Cooldown Off: OFF"
+CooldownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CooldownBtn.Font = Enum.Font.GothamBold
+CooldownBtn.TextSize = 18
+CooldownBtn.Parent = MainFrame
+
+local CooldownCorner = Instance.new("UICorner")
+CooldownCorner.CornerRadius = UDim.new(0, 8)
+CooldownCorner.Parent = CooldownBtn
+
+-- Check Moveset Button
+local CheckBtn = Instance.new("TextButton")
+CheckBtn.Size = UDim2.new(0.9, 0, 0, 50)
+CheckBtn.Position = UDim2.new(0.05, 0, 0, 135)
+CheckBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+CheckBtn.Text = "Check Moveset"
+CheckBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CheckBtn.Font = Enum.Font.GothamBold
+CheckBtn.TextSize = 18
+CheckBtn.Parent = MainFrame
+
+local CheckCorner = Instance.new("UICorner")
+CheckCorner.CornerRadius = UDim.new(0, 8)
+CheckCorner.Parent = CheckBtn
+
+-- Results Scroll
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(0.9, 0, 0, 220)
+ScrollFrame.Position = UDim2.new(0.05, 0, 0, 200)
+ScrollFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollFrame.Parent = MainFrame
+
+local ScrollCorner = Instance.new("UICorner")
+ScrollCorner.CornerRadius = UDim.new(0, 8)
+ScrollCorner.Parent = ScrollFrame
+
+local ResultLabel = Instance.new("TextLabel")
+ResultLabel.Size = UDim2.new(1, -10, 0, 0)
+ResultLabel.Position = UDim2.new(0, 5, 0, 5)
+ResultLabel.BackgroundTransparency = 1
+ResultLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+ResultLabel.Font = Enum.Font.Gotham
+ResultLabel.TextSize = 15
+ResultLabel.TextXAlignment = Enum.TextXAlignment.Left
+ResultLabel.TextYAlignment = Enum.TextYAlignment.Top
+ResultLabel.TextWrapped = true
+ResultLabel.Text = "Tap Check Moveset to scan..."
+ResultLabel.Parent = ScrollFrame
+
+-- Close Button
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0.9, 0, 0, 45)
+CloseBtn.Position = UDim2.new(0.05, 0, 1, -55)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+CloseBtn.Text = "CLOSE"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 16
+CloseBtn.Parent = MainFrame
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseBtn
+
+-- ====================== BUTTONS ======================
 OpenButton.MouseButton1Click:Connect(function()
     MainFrame.Visible = true
     OpenButton.Visible = false
 end)
 
-CloseButton.MouseButton1Click:Connect(function()
+CloseBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     OpenButton.Visible = true
 end)
 
-CheckButton.MouseButton1Click:Connect(function()
+CooldownBtn.MouseButton1Click:Connect(function()
+    local newState = not CooldownOff
+    toggleCooldownOff(newState)
+
+    if newState then
+        CooldownBtn.Text = "Cooldown Off: ON"
+        CooldownBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+    else
+        CooldownBtn.Text = "Cooldown Off: OFF"
+        CooldownBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    end
+end)
+
+CheckBtn.MouseButton1Click:Connect(function()
     local result = checkMoveset()
     ResultLabel.Text = result
     ResultLabel.Size = UDim2.new(1, -10, 0, ResultLabel.TextBounds.Y + 20)
     ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, ResultLabel.TextBounds.Y + 30)
 end)
 
-print("JJS Moveset Checker loaded! (Mobile)")
+print("[JJS Hub] Loaded - Cooldown Off + Moveset Checker")

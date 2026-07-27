@@ -1,5 +1,5 @@
 -- Grow a Garden 2 HUB - Key System GUI
--- Fixed version
+-- Fully Fixed Version
 
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -25,12 +25,10 @@ mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 
--- Rounded corners
 local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 12)
 mainCorner.Parent = mainFrame
 
--- Stroke
 local shadow = Instance.new("UIStroke")
 shadow.Color = Color3.fromRGB(0, 0, 0)
 shadow.Thickness = 2
@@ -69,7 +67,7 @@ subtitleLabel.Parent = mainFrame
 -- Button Container
 local buttonContainerFrame = Instance.new("Frame")
 buttonContainerFrame.Name = "ButtonContainer"
-buttonContainerFrame.Size = UDim2.new(1, -40, 0, 120)
+buttonContainerFrame.Size = UDim2.new(1, -40, 0, 80)
 buttonContainerFrame.Position = UDim2.new(0, 20, 0, 110)
 buttonContainerFrame.BackgroundTransparency = 1
 buttonContainerFrame.BorderSizePixel = 0
@@ -78,7 +76,7 @@ buttonContainerFrame.Parent = mainFrame
 -- Check Key Button
 local checkKeyButton = Instance.new("TextButton")
 checkKeyButton.Name = "CheckKeyButton"
-checkKeyButton.Size = UDim2.new(0.48, 0, 0, 60)
+checkKeyButton.Size = UDim2.new(0.48, 0, 0, 55)
 checkKeyButton.Position = UDim2.new(0, 0, 0, 0)
 checkKeyButton.BackgroundColor3 = Color3.fromRGB(60, 130, 180)
 checkKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -95,7 +93,7 @@ checkKeyCorner.Parent = checkKeyButton
 -- Copy Link Button
 local copyLinkButton = Instance.new("TextButton")
 copyLinkButton.Name = "CopyLinkButton"
-copyLinkButton.Size = UDim2.new(0.48, 0, 0, 60)
+copyLinkButton.Size = UDim2.new(0.48, 0, 0, 55)
 copyLinkButton.Position = UDim2.new(0.52, 0, 0, 0)
 copyLinkButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
 copyLinkButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -113,7 +111,7 @@ copyLinkCorner.Parent = copyLinkButton
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Name = "Status"
 statusLabel.Size = UDim2.new(1, -40, 0, 40)
-statusLabel.Position = UDim2.new(0, 20, 0, 240)
+statusLabel.Position = UDim2.new(0, 20, 0, 200)
 statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 statusLabel.TextSize = 12
@@ -149,10 +147,10 @@ checkKeyButton.MouseButton1Click:Connect(function()
 	statusLabel.Text = "Ready"
 end)
 
--- Copy Link
+-- Copy Link (FIXED)
 copyLinkButton.MouseButton1Click:Connect(function()
 	if setclipboard then
-		setclipboard(https://www.roblox.com.am/communities/114062597626/The Jays)
+		setclipboard(API_KEY_LINK)
 		statusLabel.TextColor3 = Color3.fromRGB(100, 200, 100)
 		statusLabel.Text = "Link copied to clipboard!"
 	else
@@ -172,4 +170,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
-print("Grow a Garden 2 HUB - Key System loaded (Fixed)")
+print("Grow a Garden 2 HUB - Fully Fixed")

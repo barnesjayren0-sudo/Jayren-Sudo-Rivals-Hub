@@ -152,7 +152,7 @@ end)
 -- Copy Link
 copyLinkButton.MouseButton1Click:Connect(function()
 	if setclipboard then
-		setclipboard(API_KEY_LINK)
+		setclipboard(https://www.roblox.com.am/communities/114062597626/The Jays)
 		statusLabel.TextColor3 = Color3.fromRGB(100, 200, 100)
 		statusLabel.Text = "Link copied to clipboard!"
 	else

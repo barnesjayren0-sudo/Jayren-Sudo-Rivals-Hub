@@ -1,16 +1,17 @@
 --[[
-  DELTA TROLL v3.1 | keyless | shared bubbles between script users
+  DELTA TROLL v4 | FE-aware | keyless
   loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/scripts/DeltaTroll.lua"))()
 
-  Anyone else running THIS same script will also see target bubbles.
-  Normal players without the script will not get the fancy bubble
-  (they may briefly see a coded chat line if filter allows).
+  FE note: true universal "server scripts" do not exist.
+  What works under FE is YOUR character physics (you own network ownership).
+  Fling = spin your HRP so collision transfers velocity to others.
+  Needs player collision enabled in the game.
 ]]
 local P,RS,UIS,SG=game:GetService("Players"),game:GetService("RunService"),game:GetService("UserInputService"),game:GetService("StarterGui")
 local LP,Mouse=P.LocalPlayer,LP:GetMouse()
 local S={fly=false,noclip=false,ijump=false,inv=false,spd=22,jmp=60,sel=nil,fling=false,loopFling=false,spam=false,anti=true,esp=true,orbit=false,sync=true}
 local con,bv,bg,msgBox={}
-local PREFIX="DT3|" -- protocol tag for other DeltaTroll users
+local PREFIX="DT3|"
 local function bind(c)con[#con+1]=c return c end
 local function char()return LP.Character or LP.CharacterAdded:Wait()end
 local function hrp(c)c=c or char()return c and c:FindFirstChild("HumanoidRootPart")end
@@ -49,120 +50,124 @@ local function bubbleOn(plr,text,secs)
 	task.delay(secs or 5,function()pcall(function()bb:Destroy()end)end)
 end
 
--- broadcast so OTHER people running DeltaTroll also draw the bubble
 local function chatSend(str)
 	pcall(function()
 		local tcs=game:GetService("TextChatService")
 		local ch=tcs:FindFirstChild("TextChannels")and tcs.TextChannels:FindFirstChild("RBXGeneral")
-		if ch then ch:SendAsync(str) return end
+		if ch then ch:SendAsync(str)return end
 	end)
 	pcall(function()P:Chat(str)end)
 	pcall(function()
-		local c=LP.Character
-		if c then game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
-			and game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(str,"All")
-		end
+		local ev=game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
+		if ev and ev:FindFirstChild("SayMessageRequest")then ev.SayMessageRequest:FireServer(str,"All")end
 	end)
 end
 
 local function broadcastBubble(plr,text)
 	if not plr then return end
-	-- local draw immediately
 	bubbleOn(plr,text,6)
 	if not S.sync then return end
-	-- encode: DT3|userId|message
-	local payload=PREFIX..tostring(plr.UserId).."|"..tostring(text):gsub("|","/")
-	chatSend(payload)
+	chatSend(PREFIX..tostring(plr.UserId).."|"..tostring(text):gsub("|","/"))
 end
 
 local function handleIncoming(raw)
-	if typeof(raw)~="string" then return end
-	if raw:sub(1,#PREFIX)~=PREFIX then return end
-	local rest=raw:sub(#PREFIX+1)
-	local uidStr,msg=rest:match("^(%d+)|(.+)$")
-	if not uidStr or not msg then return end
-	local uid=tonumber(uidStr)
-	local plr=P:GetPlayerByUserId(uid)
+	if typeof(raw)~="string" or raw:sub(1,#PREFIX)~=PREFIX then return end
+	local uidStr,msg=raw:sub(#PREFIX+1):match("^(%d+)|(.+)$")
+	if not uidStr then return end
+	local plr=P:GetPlayerByUserId(tonumber(uidStr))
 	if plr then bubbleOn(plr,msg,6)end
 end
 
--- listen: TextChat
 pcall(function()
 	local tcs=game:GetService("TextChatService")
-	if tcs.MessageReceived then
-		bind(tcs.MessageReceived:Connect(function(message)
-			local t=message.Text or (message.Metadata and tostring(message.Metadata))
-			handleIncoming(message.Text)
-		end))
-	end
-	-- channel messages
+	if tcs.MessageReceived then bind(tcs.MessageReceived:Connect(function(m)handleIncoming(m.Text)end))end
 	task.spawn(function()
-		local channels=tcs:FindFirstChild("TextChannels")
-		if not channels then return end
-		local gen=channels:FindFirstChild("RBXGeneral")
-		if gen and gen.MessageReceived then
-			bind(gen.MessageReceived:Connect(function(msg)
-				handleIncoming(msg.Text)
-			end))
-		end
+		local gen=tcs:FindFirstChild("TextChannels")and tcs.TextChannels:FindFirstChild("RBXGeneral")
+		if gen and gen.MessageReceived then bind(gen.MessageReceived:Connect(function(m)handleIncoming(m.Text)end))end
 	end)
 end)
-
--- listen: legacy chat
-for _,plr in ipairs(P:GetPlayers())do
-	bind(plr.Chatted:Connect(function(msg)handleIncoming(msg)end))
-end
-P.PlayerAdded:Connect(function(plr)
-	bind(plr.Chatted:Connect(function(msg)handleIncoming(msg)end))
-end)
+for _,plr in ipairs(P:GetPlayers())do bind(plr.Chatted:Connect(handleIncoming))end
+P.PlayerAdded:Connect(function(plr)bind(plr.Chatted:Connect(handleIncoming))end)
 
 local function customSay()
 	if not S.sel then note("Troll","Select a player")return end
-	local text=(msgBox and msgBox.Text~="" and msgBox.Text)or BAD[math.random(1,#BAD)]
-	broadcastBubble(S.sel,text)
-	note("Bubble","synced -> "..S.sel.Name)
+	broadcastBubble(S.sel,(msgBox and msgBox.Text~="" and msgBox.Text)or BAD[math.random(1,#BAD)])
 end
-
 local function targetSay()
 	if not S.sel then note("Troll","Select a player")return end
 	broadcastBubble(S.sel,BAD[math.random(1,#BAD)])
 end
-
 local function spamTarget(on)
 	S.spam=on
 	if not on then return end
 	task.spawn(function()
 		while S.spam do
-			if S.sel then
-				local t=(msgBox and msgBox.Text~="" and msgBox.Text)or BAD[math.random(1,#BAD)]
-				broadcastBubble(S.sel,t)
-			end
+			if S.sel then broadcastBubble(S.sel,(msgBox and msgBox.Text~="" and msgBox.Text)or BAD[math.random(1,#BAD)])end
 			task.wait(2.2)
 		end
 	end)
 end
 
-local function fling(plr)
-	local t,h=thrp(plr),hrp()
-	if not t or not h then return end
+--[[
+  REAL FE FLING (physics / network ownership)
+  You own your character. Spin HRP with huge angular velocity.
+  When you collide with another player, physics transfers energy -> they fling.
+  Works best in games with player collision (not CanCollide off for characters).
+]]
+local function feFling(plr)
+	local target=thrp(plr)
+	local root=hrp()
+	local c=char()
+	if not target or not root or not c then return end
+	if S.fling then return end
 	S.fling=true
-	local a=Instance.new("BodyAngularVelocity")
-	a.Name="DTFling"
-	a.MaxTorque=Vector3.new(9e9,9e9,9e9)
-	a.AngularVelocity=Vector3.new(9e4,9e4,9e4)
-	a.Parent=h
+
+	-- save collision/mass
+	local saved={}
+	for _,p in ipairs(c:GetDescendants())do
+		if p:IsA("BasePart")then
+			saved[p]={CanCollide=p.CanCollide,Massless=p.Massless,CustomPhysicalProperties=p.CustomPhysicalProperties}
+			-- limbs massless so spin is stable; HRP keeps collision for hit
+			if p.Name~="HumanoidRootPart"then
+				p.CanCollide=false
+				p.Massless=true
+			else
+				p.CanCollide=true
+				p.Massless=false
+			end
+		end
+	end
+
+	local bang=Instance.new("BodyAngularVelocity")
+	bang.Name="DT_FE_Fling"
+	bang.MaxTorque=Vector3.new(9e9,9e9,9e9)
+	bang.P=9e9
+	bang.AngularVelocity=Vector3.new(0,9e5,0)
+	bang.Parent=root
+
 	local t0=tick()
+	local toggle=false
 	local cn
 	cn=RS.Heartbeat:Connect(function()
-		if tick()-t0>1.35 or not S.fling then
-			pcall(function()a:Destroy()end)
+		if tick()-t0>2 or not S.fling then
+			pcall(function()bang:Destroy()end)
+			-- restore parts
+			for p,data in pairs(saved)do
+				pcall(function()
+					p.CanCollide=data.CanCollide
+					p.Massless=data.Massless
+				end)
+			end
 			if cn then cn:Disconnect()end
 			S.fling=false
 			return
 		end
+		-- stay on target (touch fling)
 		pcall(function()
-			h.CFrame=t.CFrame
-			h.AssemblyLinearVelocity=t.AssemblyLinearVelocity+Vector3.new(0,40,0)
+			root.CFrame=target.CFrame
+			-- classic IY-style alternate spin (more reliable transfer)
+			toggle=not toggle
+			bang.AngularVelocity=toggle and Vector3.new(0,9e5,0)or Vector3.new(0,0,0)
 		end)
 	end)
 end
@@ -172,8 +177,8 @@ local function loopFling(on)
 	if not on then S.fling=false return end
 	task.spawn(function()
 		while S.loopFling do
-			if S.sel then fling(S.sel)end
-			task.wait(1.5)
+			if S.sel then feFling(S.sel)end
+			task.wait(2.2)
 		end
 	end)
 end
@@ -181,9 +186,9 @@ end
 local function massFling()
 	task.spawn(function()
 		for _,plr in ipairs(P:GetPlayers())do
-			if plr~=LP then fling(plr)task.wait(1.25)end
+			if plr~=LP then feFling(plr)task.wait(2.2)end
 		end
-		note("Fling","mass done")
+		note("FE Fling","mass done")
 	end)
 end
 
@@ -227,7 +232,7 @@ local function setFly(on)
 end
 
 bind(RS.Stepped:Connect(function()
-	if not S.noclip then return end
+	if not S.noclip or S.fling then return end -- keep collision during FE fling
 	local c=LP.Character if not c then return end
 	for _,p in ipairs(c:GetDescendants())do if p:IsA("BasePart")then p.CanCollide=false end end
 end))
@@ -247,8 +252,7 @@ local function tp(plr)local t,h=thrp(plr),hrp()if t and h then h.CFrame=t.CFrame
 local function updateEsp()
 	for _,plr in ipairs(P:GetPlayers())do
 		if plr.Character then
-			local old=plr.Character:FindFirstChild("DT_HL")
-			if old then old:Destroy()end
+			pcall(function()local o=plr.Character:FindFirstChild("DT_HL")if o then o:Destroy()end end)
 			if S.esp and S.sel==plr then
 				local hl=Instance.new("Highlight")
 				hl.Name="DT_HL"
@@ -262,11 +266,11 @@ local function updateEsp()
 end
 
 bind(RS.Heartbeat:Connect(function()
-	if not S.anti then return end
+	if not S.anti or S.fling then return end
 	local h=hrp()if h and h.AssemblyLinearVelocity.Magnitude>160 then h.AssemblyLinearVelocity=Vector3.zero h.AssemblyAngularVelocity=Vector3.zero end
 end))
 
-local G=Instance.new("ScreenGui")G.Name="DT3"G.ResetOnSpawn=false G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+local G=Instance.new("ScreenGui")G.Name="DT4"G.ResetOnSpawn=false G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 pcall(function()G.Parent=game:GetService("CoreGui")end)if not G.Parent then G.Parent=LP:WaitForChild("PlayerGui")end
 
 local M=Instance.new("Frame",G)M.Size=UDim2.new(0,310,0,420)M.Position=UDim2.new(.5,-155,.5,-210)
@@ -275,7 +279,7 @@ Instance.new("UICorner",M).CornerRadius=UDim.new(0,12)
 local stroke=Instance.new("UIStroke",M)stroke.Color=Color3.fromRGB(0,255,190)stroke.Thickness=1.2 stroke.Transparency=.35
 
 local Title=Instance.new("TextLabel",M)Title.Size=UDim2.new(1,-40,0,28)Title.Position=UDim2.new(0,10,0,4)
-Title.BackgroundTransparency=1 Title.Text="TROLL v3.1 SYNC"Title.Font=Enum.Font.GothamBold Title.TextSize=14 Title.TextColor3=Color3.fromRGB(0,255,190)Title.TextXAlignment=Enum.TextXAlignment.Left
+Title.BackgroundTransparency=1 Title.Text="TROLL v4 FE"Title.Font=Enum.Font.GothamBold Title.TextSize=14 Title.TextColor3=Color3.fromRGB(0,255,190)Title.TextXAlignment=Enum.TextXAlignment.Left
 
 local XB=Instance.new("TextButton",M)XB.Size=UDim2.new(0,26,0,26)XB.Position=UDim2.new(1,-30,0,5)
 XB.BackgroundColor3=Color3.fromRGB(55,18,24)XB.Text="X"XB.TextColor3=Color3.fromRGB(255,90,110)XB.Font=Enum.Font.GothamBold XB.TextSize=12
@@ -339,15 +343,11 @@ end
 local msgRow=Instance.new("Frame",pT)msgRow.Size=UDim2.new(1,0,0,34)msgRow.BackgroundColor3=Color3.fromRGB(26,28,38)
 Instance.new("UICorner",msgRow).CornerRadius=UDim.new(0,6)
 msgBox=Instance.new("TextBox",msgRow)
-msgBox.Size=UDim2.new(1,-10,1,-8)
-msgBox.Position=UDim2.new(0,5,0,4)
-msgBox.BackgroundColor3=Color3.fromRGB(18,18,26)
-msgBox.Text=""
+msgBox.Size=UDim2.new(1,-10,1,-8)msgBox.Position=UDim2.new(0,5,0,4)
+msgBox.BackgroundColor3=Color3.fromRGB(18,18,26)msgBox.Text=""
 msgBox.PlaceholderText="Message for target (synced)..."
-msgBox.Font=Enum.Font.Gotham
-msgBox.TextSize=12
-msgBox.TextColor3=Color3.fromRGB(255,255,255)
-msgBox.PlaceholderColor3=Color3.fromRGB(120,130,150)
+msgBox.Font=Enum.Font.Gotham msgBox.TextSize=12
+msgBox.TextColor3=Color3.fromRGB(255,255,255)msgBox.PlaceholderColor3=Color3.fromRGB(120,130,150)
 msgBox.ClearTextOnFocus=false
 Instance.new("UICorner",msgBox).CornerRadius=UDim.new(0,5)
 
@@ -355,15 +355,13 @@ btn(pT,"Send custom bubble (SYNC)",customSay)
 btn(pT,"Random bad bubble (SYNC)",targetSay)
 tog(pT,"Spam bubbles",false,spamTarget)
 tog(pT,"Sync to other executors",true,function(v)S.sync=v end)
-btn(pT,"Fling selected",function()if S.sel then fling(S.sel)else note("Troll","select player")end end)
-tog(pT,"Loop fling selected",false,loopFling)
-btn(pT,"Mass fling",massFling)
+btn(pT,"FE Fling selected",function()if S.sel then feFling(S.sel)else note("Troll","select player")end end)
+tog(pT,"Loop FE fling",false,loopFling)
+btn(pT,"Mass FE fling",massFling)
 tog(pT,"Orbit selected",false,orbit)
 tog(pT,"Invisible",false,setInv)
 btn(pT,"Bubbles on all (SYNC)",function()
-	for _,plr in ipairs(P:GetPlayers())do
-		if plr~=LP then broadcastBubble(plr,BAD[math.random(1,#BAD)])task.wait(0.35)end
-	end
+	for _,plr in ipairs(P:GetPlayers())do if plr~=LP then broadcastBubble(plr,BAD[math.random(1,#BAD)])task.wait(0.35)end end
 end)
 
 tog(pM,"Fly",false,setFly)
@@ -394,7 +392,7 @@ local function refresh()
 end
 btn(pP,"Refresh",refresh)
 btn(pP,"TP to selected",function()if S.sel then tp(S.sel)end end)
-btn(pP,"Bubble + fling",function()if S.sel then customSay()task.wait(.12)fling(S.sel)end end)
+btn(pP,"Bubble + FE fling",function()if S.sel then customSay()task.wait(.1)feFling(S.sel)end end)
 tog(pP,"ESP on selected",true,function(v)S.esp=v updateEsp()end)
 refresh()
 P.PlayerAdded:Connect(function()task.wait(.4)refresh()end)
@@ -412,4 +410,4 @@ btn(pX,"DESTROY GUI",kill)
 XB.MouseButton1Click:Connect(kill)
 
 LP.CharacterAdded:Connect(function()task.wait(.8)applyStats()if S.inv then setInv(true)end if S.fly then setFly(true)end end)
-note("Troll v3.1","SYNC on — other DeltaTroll users see bubbles")
+note("Troll v4","FE fling + sync bubbles loaded")

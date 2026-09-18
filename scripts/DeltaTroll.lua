@@ -1,60 +1,130 @@
 --[[
-  DELTA TROLL v2 | keyless | Delta Executor
+  DELTA TROLL v3 | keyless
   loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/scripts/DeltaTroll.lua"))()
 ]]
-local P,RS,UIS,SG=game:GetService("Players"),game:GetService("RunService"),game:GetService("UserInputService"),game:GetService("StarterGui")
+local P,RS,UIS,SG,TS=game:GetService("Players"),game:GetService("RunService"),game:GetService("UserInputService"),game:GetService("StarterGui"),game:GetService("TweenService")
 local LP,Mouse=P.LocalPlayer,LP:GetMouse()
-local S={fly=false,noclip=false,ijump=false,inv=false,spd=16,jmp=50,sel=nil,fling=false,spam=false,anti=false}
-local con,bv,bg={}
+local S={fly=false,noclip=false,ijump=false,inv=false,spd=22,jmp=60,sel=nil,fling=false,loopFling=false,spam=false,anti=true,esp=true,orbit=false}
+local con,bv,bg,msgBox={}
 local function bind(c)con[#con+1]=c return c end
 local function char()return LP.Character or LP.CharacterAdded:Wait()end
 local function hrp(c)c=c or char()return c and c:FindFirstChild("HumanoidRootPart")end
 local function hum(c)c=c or char()return c and c:FindFirstChildOfClass("Humanoid")end
+local function thrp(plr)return plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")end
 local function note(t,m)pcall(function()SG:SetCore("SendNotification",{Title=t,Text=m,Duration=2})end)end
 
--- lines shown as the SELECTED player (bubble). FE cannot force their real chat.
-local BAD={
-"shut the fuck up","you're so trash","ez mid","cry more noob","skill issue idiot",
-"ratio + L","get good loser","nobody asked","stfu","your mom","touch grass",
-"absolute dogwater","delete the game","bot account","free kill","trash player"
-}
+local BAD={"shut the fuck up","you're so trash","ez mid","cry more noob","skill issue idiot","ratio + L","get good loser","nobody asked","stfu","touch grass","absolute dogwater","delete the game","bot account","free kill","trash player","L + ratio","mid ahh","cope harder"}
 
-local function bubbleOn(plr,text)
+local function bubbleOn(plr,text,secs)
 	if not plr or not plr.Character then return end
-	local h=plr.Character:FindFirstChild("Head")or plr.Character:FindFirstChild("HumanoidRootPart")
+	local h=plr.Character:FindFirstChild("Head")or thrp(plr)
 	if not h then return end
-	local old=h:FindFirstChild("TrollBubble")
-	if old then old:Destroy()end
+	pcall(function()local o=h:FindFirstChild("TrollBubble")if o then o:Destroy()end end)
 	local bb=Instance.new("BillboardGui")
 	bb.Name="TrollBubble"
-	bb.Size=UDim2.new(0,220,0,52)
-	bb.StudsOffset=Vector3.new(0,3.2,0)
+	bb.Size=UDim2.new(0,240,0,58)
+	bb.StudsOffset=Vector3.new(0,3.4,0)
 	bb.AlwaysOnTop=true
+	bb.MaxDistance=500
 	bb.Parent=h
-	local tl=Instance.new("TextLabel",bb)
-	tl.Size=UDim2.new(1,0,1,0)
-	tl.BackgroundColor3=Color3.fromRGB(255,255,255)
-	tl.TextColor3=Color3.fromRGB(0,0,0)
+	local f=Instance.new("Frame",bb)
+	f.Size=UDim2.new(1,0,1,0)
+	f.BackgroundColor3=Color3.fromRGB(20,20,28)
+	Instance.new("UICorner",f).CornerRadius=UDim.new(0,10)
+	local s=Instance.new("UIStroke",f)s.Color=Color3.fromRGB(0,255,180)s.Thickness=1.5
+	local tl=Instance.new("TextLabel",f)
+	tl.Size=UDim2.new(1,-10,1,-6)
+	tl.Position=UDim2.new(0,5,0,3)
+	tl.BackgroundTransparency=1
+	tl.Text=plr.DisplayName..": "..tostring(text)
 	tl.Font=Enum.Font.GothamBold
 	tl.TextScaled=true
-	tl.Text=plr.DisplayName..": "..text
-	Instance.new("UICorner",tl).CornerRadius=UDim.new(0,8)
-	task.delay(4,function()if bb then bb:Destroy()end end)
+	tl.TextColor3=Color3.fromRGB(255,255,255)
+	tl.TextWrapped=true
+	task.delay(secs or 5,function()pcall(function()bb:Destroy()end)end)
 end
 
-local function targetSay()
-	if not S.sel then note("Troll","Pick a player")return end
-	local msg=BAD[math.random(1,#BAD)]
-	bubbleOn(S.sel,msg)
+local function customSay()
+	if not S.sel then note("Troll","Select a player")return end
+	local text=(msgBox and msgBox.Text and msgBox.Text~="" and msgBox.Text)or BAD[math.random(1,#BAD)]
+	bubbleOn(S.sel,text,6)
+	note("Bubble",S.sel.Name)
 end
 
-local function spamTargetTalk(on)
+local function targetSay()if not S.sel then note("Troll","Select a player")return end bubbleOn(S.sel,BAD[math.random(1,#BAD)],5)end
+
+local function spamTarget(on)
 	S.spam=on
 	if not on then return end
 	task.spawn(function()
 		while S.spam do
-			if S.sel then bubbleOn(S.sel,BAD[math.random(1,#BAD)])end
-			task.wait(1.8)
+			if S.sel then
+				local t=(msgBox and msgBox.Text~="" and msgBox.Text)or BAD[math.random(1,#BAD)]
+				bubbleOn(S.sel,t,2)
+			end
+			task.wait(1.4)
+		end
+	end)
+end
+
+-- stronger fling
+local function fling(plr)
+	local t,h=thrp(plr),hrp()
+	if not t or not h then return end
+	S.fling=true
+	local a=Instance.new("BodyAngularVelocity")
+	a.Name="DTFling"
+	a.MaxTorque=Vector3.new(9e9,9e9,9e9)
+	a.AngularVelocity=Vector3.new(9e4,9e4,9e4)
+	a.Parent=h
+	local t0=tick()
+	local cn
+	cn=RS.Heartbeat:Connect(function()
+		if tick()-t0>1.35 or not S.fling then
+			pcall(function()a:Destroy()end)
+			if cn then cn:Disconnect()end
+			S.fling=false
+			return
+		end
+		pcall(function()
+			h.CFrame=t.CFrame
+			h.AssemblyLinearVelocity=t.AssemblyLinearVelocity+Vector3.new(0,40,0)
+		end)
+	end)
+end
+
+local function loopFling(on)
+	S.loopFling=on
+	if not on then S.fling=false return end
+	task.spawn(function()
+		while S.loopFling do
+			if S.sel then fling(S.sel)end
+			task.wait(1.5)
+		end
+	end)
+end
+
+local function massFling()
+	task.spawn(function()
+		for _,plr in ipairs(P:GetPlayers())do
+			if plr~=LP then fling(plr)task.wait(1.25)end
+		end
+		note("Fling","mass done")
+	end)
+end
+
+local function orbit(on)
+	S.orbit=on
+	if not on then return end
+	task.spawn(function()
+		local ang=0
+		while S.orbit do
+			local t,h=thrp(S.sel),hrp()
+			if t and h then
+				ang+=0.12
+				h.CFrame=CFrame.new(t.Position)+Vector3.new(math.cos(ang)*6,2,math.sin(ang)*6)
+			end
+			task.wait()
 		end
 	end)
 end
@@ -66,7 +136,7 @@ local function setFly(on)
 	if bg then bg:Destroy()bg=nil end
 	if not on then return end
 	bv=Instance.new("BodyVelocity")bv.MaxForce=Vector3.new(9e9,9e9,9e9)bv.Velocity=Vector3.zero bv.Parent=h
-	bg=Instance.new("BodyGyro")bg.MaxTorque=Vector3.new(9e9,9e9,9e9)bg.P=9e4 bg.Parent=h
+	bg=Instance.new("BodyGyro")bg.MaxTorque=Vector3.new(9e9,9e9,9e9)bg.P=5e4 bg.Parent=h
 	bind(RS.RenderStepped:Connect(function()
 		if not S.fly or not bv or not bv.Parent then return end
 		local cam=workspace.CurrentCamera local d=Vector3.zero
@@ -76,8 +146,8 @@ local function setFly(on)
 		if UIS:IsKeyDown(Enum.KeyCode.D)then d+=cam.CFrame.RightVector end
 		if UIS:IsKeyDown(Enum.KeyCode.Space)then d+=Vector3.yAxis end
 		if UIS:IsKeyDown(Enum.KeyCode.LeftControl)then d-=Vector3.yAxis end
-		local hu=hum()if hu and d.Magnitude<.1 then d=hu.MoveDirection end
-		bv.Velocity=d.Magnitude>0 and d.Unit*(S.spd*2.2)or Vector3.zero
+		local hu=hum()if hu and d.Magnitude<.05 then d=hu.MoveDirection end
+		bv.Velocity=d.Magnitude>0 and d.Unit*(S.spd*2.6)or Vector3.zero
 		bg.CFrame=cam.CFrame
 	end))
 end
@@ -98,70 +168,63 @@ local function setInv(on)
 	end
 end
 
-local function fling(plr)
-	if not plr or not plr.Character then return end
-	local t,h=plr.Character:FindFirstChild("HumanoidRootPart"),hrp()
-	if not t or not h then return end
-	S.fling=true
-	local a=Instance.new("BodyAngularVelocity")a.MaxTorque=Vector3.new(9e9,9e9,9e9)a.AngularVelocity=Vector3.new(0,9e5,0)a.Parent=h
-	local t0=tick()local cn
-	cn=RS.Heartbeat:Connect(function()
-		if tick()-t0>1.1 or not S.fling then a:Destroy()cn:Disconnect()S.fling=false return end
-		h.CFrame=t.CFrame
-	end)
-end
+local function tp(plr)local t,h=thrp(plr),hrp()if t and h then h.CFrame=t.CFrame*CFrame.new(0,0,3)end end
 
-local function massFling()
-	task.spawn(function()
-		for _,plr in ipairs(P:GetPlayers())do if plr~=LP then fling(plr)task.wait(1.2)end end
-		note("Fling","done")
-	end)
-end
-
-local function tp(plr)
-	local t,h=plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart"),hrp()
-	if t and h then h.CFrame=t.CFrame*CFrame.new(0,0,3)end
+-- selection ESP
+local function updateEsp()
+	for _,plr in ipairs(P:GetPlayers())do
+		if plr.Character then
+			local old=plr.Character:FindFirstChild("DT_HL")
+			if old then old:Destroy()end
+			if S.esp and S.sel==plr then
+				local hl=Instance.new("Highlight")
+				hl.Name="DT_HL"
+				hl.FillColor=Color3.fromRGB(0,255,180)
+				hl.OutlineColor=Color3.fromRGB(255,255,255)
+				hl.FillTransparency=.55
+				hl.Parent=plr.Character
+			end
+		end
+	end
 end
 
 bind(RS.Heartbeat:Connect(function()
 	if not S.anti then return end
-	local h=hrp()if h and h.AssemblyLinearVelocity.Magnitude>140 then h.AssemblyLinearVelocity=Vector3.zero h.AssemblyAngularVelocity=Vector3.zero end
+	local h=hrp()if h and h.AssemblyLinearVelocity.Magnitude>160 then h.AssemblyLinearVelocity=Vector3.zero h.AssemblyAngularVelocity=Vector3.zero end
 end))
 
-local G=Instance.new("ScreenGui")G.Name="DT2"G.ResetOnSpawn=false G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+-- GUI
+local G=Instance.new("ScreenGui")G.Name="DT3"G.ResetOnSpawn=false G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 pcall(function()G.Parent=game:GetService("CoreGui")end)if not G.Parent then G.Parent=LP:WaitForChild("PlayerGui")end
 
-local M=Instance.new("Frame",G)M.Size=UDim2.new(0,300,0,380)M.Position=UDim2.new(.5,-150,.5,-190)
-M.BackgroundColor3=Color3.fromRGB(14,14,20)M.BorderSizePixel=0 M.Active=true M.Draggable=true
-Instance.new("UICorner",M).CornerRadius=UDim.new(0,10)
-local stroke=Instance.new("UIStroke",M)stroke.Color=Color3.fromRGB(0,255,200)stroke.Thickness=1 stroke.Transparency=.4
+local M=Instance.new("Frame",G)M.Size=UDim2.new(0,310,0,420)M.Position=UDim2.new(.5,-155,.5,-210)
+M.BackgroundColor3=Color3.fromRGB(12,12,18)M.BorderSizePixel=0 M.Active=true M.Draggable=true
+Instance.new("UICorner",M).CornerRadius=UDim.new(0,12)
+local stroke=Instance.new("UIStroke",M)stroke.Color=Color3.fromRGB(0,255,190)stroke.Thickness=1.2 stroke.Transparency=.35
 
 local Title=Instance.new("TextLabel",M)Title.Size=UDim2.new(1,-40,0,28)Title.Position=UDim2.new(0,10,0,4)
-Title.BackgroundTransparency=1 Title.Text="TROLL v2"Title.Font=Enum.Font.GothamBold Title.TextSize=14 Title.TextColor3=Color3.fromRGB(0,255,200)Title.TextXAlignment=Enum.TextXAlignment.Left
+Title.BackgroundTransparency=1 Title.Text="TROLL v3"Title.Font=Enum.Font.GothamBold Title.TextSize=15 Title.TextColor3=Color3.fromRGB(0,255,190)Title.TextXAlignment=Enum.TextXAlignment.Left
 
-local XB=Instance.new("TextButton",M)XB.Size=UDim2.new(0,26,0,26)XB.Position=UDim2.new(1,-30,0,4)
-XB.BackgroundColor3=Color3.fromRGB(50,20,25)XB.Text="X"XB.TextColor3=Color3.fromRGB(255,80,100)XB.Font=Enum.Font.GothamBold XB.TextSize=12
+local XB=Instance.new("TextButton",M)XB.Size=UDim2.new(0,26,0,26)XB.Position=UDim2.new(1,-30,0,5)
+XB.BackgroundColor3=Color3.fromRGB(55,18,24)XB.Text="X"XB.TextColor3=Color3.fromRGB(255,90,110)XB.Font=Enum.Font.GothamBold XB.TextSize=12
 Instance.new("UICorner",XB).CornerRadius=UDim.new(0,6)
 
 local tabs=Instance.new("Frame",M)tabs.Size=UDim2.new(1,-12,0,26)tabs.Position=UDim2.new(0,6,0,34)tabs.BackgroundTransparency=1
-local tl=Instance.new("UIListLayout",tabs)tl.FillDirection=Enum.FillDirection.Horizontal tl.Padding=UDim.new(0,4)
+Instance.new("UIListLayout",tabs).FillDirection=Enum.FillDirection.Horizontal
+local tpad=Instance.new("UIListLayout",tabs)tpad.FillDirection=Enum.FillDirection.Horizontal tpad.Padding=UDim.new(0,4)
 
 local body=Instance.new("ScrollingFrame",M)body.Size=UDim2.new(1,-12,1,-68)body.Position=UDim2.new(0,6,0,64)
-body.BackgroundColor3=Color3.fromRGB(20,20,28)body.BorderSizePixel=0 body.ScrollBarThickness=3
+body.BackgroundColor3=Color3.fromRGB(18,18,26)body.BorderSizePixel=0 body.ScrollBarThickness=3
 body.AutomaticCanvasSize=Enum.AutomaticSize.Y body.CanvasSize=UDim2.new()
 Instance.new("UICorner",body).CornerRadius=UDim.new(0,8)
 local pad=Instance.new("UIPadding",body)pad.PaddingTop=UDim.new(0,6)pad.PaddingBottom=UDim.new(0,6)pad.PaddingLeft=UDim.new(0,6)pad.PaddingRight=UDim.new(0,6)
 
 local pages={}
-local function page(n)
-	local f=Instance.new("Frame",body)f.Size=UDim2.new(1,0,0,0)f.AutomaticSize=Enum.AutomaticSize.Y f.BackgroundTransparency=1 f.Visible=false
-	Instance.new("UIListLayout",f).Padding=UDim.new(0,5)
-	pages[n]=f return f
-end
+local function page(n)local f=Instance.new("Frame",body)f.Size=UDim2.new(1,0,0,0)f.AutomaticSize=Enum.AutomaticSize.Y f.BackgroundTransparency=1 f.Visible=false Instance.new("UIListLayout",f).Padding=UDim.new(0,5)pages[n]=f return f end
 local function show(n)for k,v in pairs(pages)do v.Visible=k==n end end
 local function tab(label,n)
-	local b=Instance.new("TextButton",tabs)b.Size=UDim2.new(0,68,1,0)b.BackgroundColor3=Color3.fromRGB(28,32,42)
-	b.Text=label b.Font=Enum.Font.GothamMedium b.TextSize=11 b.TextColor3=Color3.fromRGB(200,230,255)
+	local b=Instance.new("TextButton",tabs)b.Size=UDim2.new(0,70,1,0)b.BackgroundColor3=Color3.fromRGB(26,30,40)
+	b.Text=label b.Font=Enum.Font.GothamMedium b.TextSize=11 b.TextColor3=Color3.fromRGB(200,235,255)
 	Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)
 	b.MouseButton1Click:Connect(function()show(n)end)
 end
@@ -169,57 +232,72 @@ end
 local pT,pM,pP,pX=page("T"),page("M"),page("P"),page("X")
 tab("Troll","T")tab("Move","M")tab("Players","P")tab("Misc","X")show("T")
 
-local function tog(parent,txt,cb)
-	local r=Instance.new("Frame",parent)r.Size=UDim2.new(1,0,0,30)r.BackgroundColor3=Color3.fromRGB(28,30,40)
+local function tog(parent,txt,def,cb)
+	local r=Instance.new("Frame",parent)r.Size=UDim2.new(1,0,0,30)r.BackgroundColor3=Color3.fromRGB(26,28,38)
 	Instance.new("UICorner",r).CornerRadius=UDim.new(0,6)
 	local l=Instance.new("TextLabel",r)l.Size=UDim2.new(1,-58,1,0)l.Position=UDim2.new(0,8,0,0)l.BackgroundTransparency=1
 	l.Text=txt l.Font=Enum.Font.Gotham l.TextSize=11 l.TextColor3=Color3.fromRGB(230,235,255)l.TextXAlignment=Enum.TextXAlignment.Left
-	local on=false
+	local on=def or false
 	local b=Instance.new("TextButton",r)b.Size=UDim2.new(0,44,0,20)b.Position=UDim2.new(1,-50,.5,-10)
-	b.BackgroundColor3=Color3.fromRGB(55,55,70)b.Text="OFF"b.Font=Enum.Font.GothamBold b.TextSize=10 b.TextColor3=Color3.new(1,1,1)
+	b.BackgroundColor3=on and Color3.fromRGB(0,170,110)or Color3.fromRGB(55,55,70)
+	b.Text=on and"ON"or"OFF"b.Font=Enum.Font.GothamBold b.TextSize=10 b.TextColor3=Color3.new(1,1,1)
 	Instance.new("UICorner",b).CornerRadius=UDim.new(0,5)
 	b.MouseButton1Click:Connect(function()on=not on b.Text=on and"ON"or"OFF"b.BackgroundColor3=on and Color3.fromRGB(0,170,110)or Color3.fromRGB(55,55,70)cb(on)end)
 end
 local function btn(parent,txt,cb)
-	local b=Instance.new("TextButton",parent)b.Size=UDim2.new(1,0,0,30)b.BackgroundColor3=Color3.fromRGB(0,100,115)
+	local b=Instance.new("TextButton",parent)b.Size=UDim2.new(1,0,0,30)b.BackgroundColor3=Color3.fromRGB(0,110,120)
 	b.Text=txt b.Font=Enum.Font.GothamMedium b.TextSize=11 b.TextColor3=Color3.fromRGB(220,255,255)
 	Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)b.MouseButton1Click:Connect(cb)
 end
 local function sld(parent,txt,a,b,def,cb)
-	local r=Instance.new("Frame",parent)r.Size=UDim2.new(1,0,0,44)r.BackgroundColor3=Color3.fromRGB(28,30,40)
+	local r=Instance.new("Frame",parent)r.Size=UDim2.new(1,0,0,44)r.BackgroundColor3=Color3.fromRGB(26,28,38)
 	Instance.new("UICorner",r).CornerRadius=UDim.new(0,6)
 	local l=Instance.new("TextLabel",r)l.Size=UDim2.new(1,-10,0,16)l.Position=UDim2.new(0,8,0,2)l.BackgroundTransparency=1
 	l.Text=txt..": "..def l.Font=Enum.Font.Gotham l.TextSize=11 l.TextColor3=Color3.fromRGB(220,230,255)l.TextXAlignment=Enum.TextXAlignment.Left
 	local bar=Instance.new("TextButton",r)bar.Size=UDim2.new(1,-16,0,8)bar.Position=UDim2.new(0,8,0,26)bar.BackgroundColor3=Color3.fromRGB(45,50,65)bar.Text=""bar.AutoButtonColor=false
 	Instance.new("UICorner",bar).CornerRadius=UDim.new(0,3)
-	local f=Instance.new("Frame",bar)f.Size=UDim2.new((def-a)/(b-a),0,1,0)f.BackgroundColor3=Color3.fromRGB(0,220,180)f.BorderSizePixel=0
+	local f=Instance.new("Frame",bar)f.Size=UDim2.new((def-a)/(b-a),0,1,0)f.BackgroundColor3=Color3.fromRGB(0,230,180)f.BorderSizePixel=0
 	Instance.new("UICorner",f).CornerRadius=UDim.new(0,3)
 	local hold=false
-	local function up(x)
-		local rel=math.clamp((x-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,0,1)
-		f.Size=UDim2.new(rel,0,1,0)local v=math.floor(a+(b-a)*rel)l.Text=txt..": "..v cb(v)
-	end
+	local function up(x)local rel=math.clamp((x-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,0,1)f.Size=UDim2.new(rel,0,1,0)local v=math.floor(a+(b-a)*rel)l.Text=txt..": "..v cb(v)end
 	bar.MouseButton1Down:Connect(function()hold=true up(Mouse.X)end)
 	bind(UIS.InputEnded:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then hold=false end end))
 	bind(UIS.InputChanged:Connect(function(i)if hold then up(i.Position.X)end end))
 end
 
-btn(pT,"Target says bad word",targetSay)
-tog(pT,"Spam target bubbles",spamTargetTalk)
+-- message box
+local msgRow=Instance.new("Frame",pT)msgRow.Size=UDim2.new(1,0,0,34)msgRow.BackgroundColor3=Color3.fromRGB(26,28,38)
+Instance.new("UICorner",msgRow).CornerRadius=UDim.new(0,6)
+msgBox=Instance.new("TextBox",msgRow)
+msgBox.Size=UDim2.new(1,-10,1,-8)
+msgBox.Position=UDim2.new(0,5,0,4)
+msgBox.BackgroundColor3=Color3.fromRGB(18,18,26)
+msgBox.Text=""
+msgBox.PlaceholderText="Type message for target bubble..."
+msgBox.Font=Enum.Font.Gotham
+msgBox.TextSize=12
+msgBox.TextColor3=Color3.fromRGB(255,255,255)
+msgBox.PlaceholderColor3=Color3.fromRGB(120,130,150)
+msgBox.ClearTextOnFocus=false
+Instance.new("UICorner",msgBox).CornerRadius=UDim.new(0,5)
+
+btn(pT,"Send custom bubble",customSay)
+btn(pT,"Random bad bubble",targetSay)
+tog(pT,"Spam bubbles",false,spamTarget)
 btn(pT,"Fling selected",function()if S.sel then fling(S.sel)else note("Troll","select player")end end)
+tog(pT,"Loop fling selected",false,loopFling)
 btn(pT,"Mass fling",massFling)
-tog(pT,"Invisible",setInv)
-btn(pT,"Bubbles on everyone",function()
-	for _,plr in ipairs(P:GetPlayers())do if plr~=LP then bubbleOn(plr,BAD[math.random(1,#BAD)])end end
-end)
+tog(pT,"Orbit selected",false,orbit)
+tog(pT,"Invisible",false,setInv)
+btn(pT,"Bubbles on all",function()for _,plr in ipairs(P:GetPlayers())do if plr~=LP then bubbleOn(plr,BAD[math.random(1,#BAD)],4)end end end)
 
-tog(pM,"Fly",setFly)
-tog(pM,"Noclip",function(v)S.noclip=v end)
-tog(pM,"Inf Jump",function(v)S.ijump=v end)
-sld(pM,"Speed",16,200,16,function(v)S.spd=v applyStats()end)
-sld(pM,"Jump",50,200,50,function(v)S.jmp=v applyStats()end)
+tog(pM,"Fly",false,setFly)
+tog(pM,"Noclip",false,function(v)S.noclip=v end)
+tog(pM,"Inf Jump",false,function(v)S.ijump=v end)
+sld(pM,"Speed",16,220,22,function(v)S.spd=v applyStats()end)
+sld(pM,"Jump",50,220,60,function(v)S.jmp=v applyStats()end)
 
-local pf=Instance.new("Frame",pP)pf.Size=UDim2.new(1,0,0,160)pf.BackgroundColor3=Color3.fromRGB(28,30,40)
+local pf=Instance.new("Frame",pP)pf.Size=UDim2.new(1,0,0,170)pf.BackgroundColor3=Color3.fromRGB(26,28,38)
 Instance.new("UICorner",pf).CornerRadius=UDim.new(0,6)
 local ps=Instance.new("ScrollingFrame",pf)ps.Size=UDim2.new(1,-8,1,-8)ps.Position=UDim2.new(0,4,0,4)
 ps.BackgroundTransparency=1 ps.ScrollBarThickness=3 ps.AutomaticCanvasSize=Enum.AutomaticSize.Y ps.CanvasSize=UDim2.new()
@@ -230,25 +308,27 @@ local function refresh()
 	for _,plr in ipairs(P:GetPlayers())do
 		if plr~=LP then
 			local b=Instance.new("TextButton",ps)b.Size=UDim2.new(1,-2,0,24)
-			b.BackgroundColor3=S.sel==plr and Color3.fromRGB(0,130,120)or Color3.fromRGB(36,40,52)
+			b.BackgroundColor3=S.sel==plr and Color3.fromRGB(0,140,120)or Color3.fromRGB(34,38,50)
 			b.Text=plr.DisplayName.." (@"..plr.Name..")"
 			b.Font=Enum.Font.Gotham b.TextSize=11 b.TextColor3=Color3.fromRGB(230,240,255)
 			Instance.new("UICorner",b).CornerRadius=UDim.new(0,5)
-			b.MouseButton1Click:Connect(function()S.sel=plr refresh()note("Sel",plr.Name)end)
+			b.MouseButton1Click:Connect(function()S.sel=plr refresh()updateEsp()note("Sel",plr.Name)end)
 		end
 	end
+	updateEsp()
 end
 btn(pP,"Refresh",refresh)
 btn(pP,"TP to selected",function()if S.sel then tp(S.sel)end end)
-btn(pP,"Speak + fling",function()if S.sel then targetSay()task.wait(.15)fling(S.sel)end end)
+btn(pP,"Bubble + fling",function()if S.sel then customSay()task.wait(.12)fling(S.sel)end end)
+tog(pP,"ESP on selected",true,function(v)S.esp=v updateEsp()end)
 refresh()
 P.PlayerAdded:Connect(function()task.wait(.4)refresh()end)
 P.PlayerRemoving:Connect(function()task.wait(.2)refresh()end)
 
-tog(pX,"Anti-fling",function(v)S.anti=v end)
+tog(pX,"Anti-fling",true,function(v)S.anti=v end)
 btn(pX,"Reset",function()local h=hum()if h then h.Health=0 end end)
 local function kill()
-	S.fly=false S.noclip=false S.ijump=false S.spam=false S.fling=false
+	S.fly=false S.noclip=false S.ijump=false S.spam=false S.fling=false S.loopFling=false S.orbit=false
 	setFly(false)
 	for _,c in ipairs(con)do pcall(function()c:Disconnect()end)end
 	G:Destroy()
@@ -256,5 +336,5 @@ end
 btn(pX,"DESTROY GUI",kill)
 XB.MouseButton1Click:Connect(kill)
 
-LP.CharacterAdded:Connect(function()task.wait(.8)applyStats()if S.inv then setInv(true)end end)
-note("Troll v2","loaded")
+LP.CharacterAdded:Connect(function()task.wait(.8)applyStats()if S.inv then setInv(true)end if S.fly then setFly(true)end end)
+note("Troll v3","loaded — type message + select player")

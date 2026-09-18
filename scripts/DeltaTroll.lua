@@ -1,27 +1,34 @@
 --[[
-  DELTA TROLL v5 | FE physics (IY-style) | keyless
+  DELTA TROLL v6 | Premium dark UI | FE physics only | keyless
   loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/scripts/DeltaTroll.lua"))()
 
-  Same class as Infinite Yield: client tools + character physics fling.
-  No FE bypass. No remote control of other clients.
+  Local tools only. No websocket control of other clients.
+  UI inspired by modern exploit hub style (dark + neon accent).
 ]]
 local P=game:GetService("Players")
 local RS=game:GetService("RunService")
 local UIS=game:GetService("UserInputService")
 local SG=game:GetService("StarterGui")
 local VU=game:GetService("VirtualUser")
+local TS=game:GetService("TweenService")
 local LP=P.LocalPlayer
 local Mouse=LP:GetMouse()
+
+local ACCENT=Color3.fromRGB(140,80,255) -- purple neon hub style
+local BG=Color3.fromRGB(14,12,20)
+local CARD=Color3.fromRGB(22,20,32)
+local MUTED=Color3.fromRGB(160,155,180)
 
 local S={
 	fly=false,noclip=false,ijump=false,inv=false,
 	spd=22,jmp=60,sel=nil,
 	fling=false,loopFling=false,walkFling=false,
 	spam=false,anti=true,esp=true,orbit=false,sync=true,
-	clickTP=false,spec=false,spin=false,antiAFK=true
+	clickTP=false,spec=false,spin=false,antiAFK=true,
+	rgb=false,tiny=false
 }
-local con,bv,bg,msgBox,spinBV={}
-local PREFIX="DT5|"
+local con,bv,bg,msgBox,spinBV,rgbCon={}
+local PREFIX="DT6|"
 
 local function bind(c)con[#con+1]=c return c end
 local function char()return LP.Character or LP.CharacterAdded:Wait()end
@@ -32,7 +39,7 @@ local function note(t,m)pcall(function()SG:SetCore("SendNotification",{Title=t,T
 
 local BAD={"shut the fuck up","you're so trash","ez mid","cry more noob","skill issue idiot","ratio + L","get good loser","nobody asked","stfu","touch grass","absolute dogwater","delete the game","bot account","free kill","trash player","L + ratio","mid ahh","cope harder"}
 
--- ===== bubbles + sync (script users only) =====
+-- bubbles + sync
 local function bubbleOn(plr,text,secs)
 	if not plr or not plr.Character then return end
 	local h=plr.Character:FindFirstChild("Head")or thrp(plr)
@@ -41,9 +48,9 @@ local function bubbleOn(plr,text,secs)
 	local bb=Instance.new("BillboardGui")
 	bb.Name="TrollBubble"bb.Size=UDim2.new(0,240,0,58)bb.StudsOffset=Vector3.new(0,3.4,0)
 	bb.AlwaysOnTop=true bb.MaxDistance=500 bb.Parent=h
-	local f=Instance.new("Frame",bb)f.Size=UDim2.new(1,0,1,0)f.BackgroundColor3=Color3.fromRGB(20,20,28)
+	local f=Instance.new("Frame",bb)f.Size=UDim2.new(1,0,1,0)f.BackgroundColor3=Color3.fromRGB(18,14,28)
 	Instance.new("UICorner",f).CornerRadius=UDim.new(0,10)
-	local s=Instance.new("UIStroke",f)s.Color=Color3.fromRGB(0,255,180)s.Thickness=1.5
+	local s=Instance.new("UIStroke",f)s.Color=ACCENT s.Thickness=1.5
 	local tl=Instance.new("TextLabel",f)
 	tl.Size=UDim2.new(1,-10,1,-6)tl.Position=UDim2.new(0,5,0,3)tl.BackgroundTransparency=1
 	tl.Text=plr.DisplayName..": "..tostring(text)
@@ -88,38 +95,28 @@ end)
 for _,plr in ipairs(P:GetPlayers())do bind(plr.Chatted:Connect(handleIncoming))end
 P.PlayerAdded:Connect(function(plr)bind(plr.Chatted:Connect(handleIncoming))end)
 
--- ===== IY-STYLE FE FLING =====
--- Exact idea as Infinite Yield ;fling:
--- heavy physics, BodyAngularVelocity Y-axis, massless limbs, alternate spin
+-- IY fling
 local function iyFling(targetPlr)
 	local root=hrp()
 	local c=char()
 	if not root or not c or S.fling then return end
 	S.fling=true
-
 	for _,child in pairs(c:GetDescendants())do
 		if child:IsA("BasePart")then
 			pcall(function()child.CustomPhysicalProperties=PhysicalProperties.new(math.huge,0.3,0.5)end)
 		end
 	end
-
 	local bang=Instance.new("BodyAngularVelocity")
-	bang.Name="DT5_IY"
-	bang.Parent=root
+	bang.Name="DT6_IY"bang.Parent=root
 	bang.AngularVelocity=Vector3.new(0,99999,0)
-	bang.MaxTorque=Vector3.new(0,math.huge,0)
-	bang.P=math.huge
-
+	bang.MaxTorque=Vector3.new(0,math.huge,0)bang.P=math.huge
 	for _,v in ipairs(c:GetChildren())do
 		if v:IsA("BasePart")then
-			v.CanCollide=false
-			v.Massless=true
+			v.CanCollide=false v.Massless=true
 			pcall(function()v.AssemblyLinearVelocity=Vector3.zero end)
 		end
 	end
-	-- keep HRP able to hit if target exists
 	if root then root.CanCollide=true root.Massless=false end
-
 	local t0=tick()
 	local cn
 	cn=RS.Heartbeat:Connect(function()
@@ -131,24 +128,19 @@ local function iyFling(targetPlr)
 		end
 		local t=targetPlr and thrp(targetPlr)
 		pcall(function()
-			if t then root.CFrame=t.CFrame end -- touch them
-			-- IY alternate spin
-			if (tick()*5)%1<0.55 then
-				bang.AngularVelocity=Vector3.new(0,99999,0)
-			else
-				bang.AngularVelocity=Vector3.zero
-			end
+			if t then root.CFrame=t.CFrame end
+			if (tick()*5)%1<0.55 then bang.AngularVelocity=Vector3.new(0,99999,0)
+			else bang.AngularVelocity=Vector3.zero end
 		end)
 	end)
 end
 
--- Walk fling: continuous IY spin while you walk into people
 local function setWalkFling(on)
 	S.walkFling=on
 	if not on then
 		S.fling=false
 		local r=hrp()
-		if r then for _,v in ipairs(r:GetChildren())do if v.Name=="DT5_WF"then v:Destroy()end end end
+		if r then for _,v in ipairs(r:GetChildren())do if v.Name=="DT6_WF"then v:Destroy()end end end
 		return
 	end
 	task.spawn(function()
@@ -156,7 +148,7 @@ local function setWalkFling(on)
 			local root=hrp()
 			local c=char()
 			if root and c then
-				if not root:FindFirstChild("DT5_WF")then
+				if not root:FindFirstChild("DT6_WF")then
 					for _,child in pairs(c:GetDescendants())do
 						if child:IsA("BasePart")then
 							pcall(function()child.CustomPhysicalProperties=PhysicalProperties.new(math.huge,0.3,0.5)end)
@@ -165,10 +157,10 @@ local function setWalkFling(on)
 					end
 					root.CanCollide=true root.Massless=false
 					local bang=Instance.new("BodyAngularVelocity")
-					bang.Name="DT5_WF"bang.Parent=root
+					bang.Name="DT6_WF"bang.Parent=root
 					bang.MaxTorque=Vector3.new(0,math.huge,0)bang.P=math.huge
 				end
-				local bang=root:FindFirstChild("DT5_WF")
+				local bang=root:FindFirstChild("DT6_WF")
 				if bang then
 					if (tick()*5)%1<0.55 then bang.AngularVelocity=Vector3.new(0,99999,0)
 					else bang.AngularVelocity=Vector3.zero end
@@ -199,7 +191,7 @@ local function massFling()
 	end)
 end
 
--- ===== movement =====
+-- movement
 local function setFly(on)
 	S.fly=on
 	local h=hrp()if not h then return end
@@ -255,27 +247,53 @@ local function setSpin(on)
 	if spinBV then spinBV:Destroy()spinBV=nil end
 	if not on or not r then return end
 	spinBV=Instance.new("BodyAngularVelocity")
-	spinBV.Name="DT5_Spin"
-	spinBV.MaxTorque=Vector3.new(0,math.huge,0)
-	spinBV.AngularVelocity=Vector3.new(0,15,0)
-	spinBV.Parent=r
+	spinBV.Name="DT6_Spin"spinBV.MaxTorque=Vector3.new(0,math.huge,0)
+	spinBV.AngularVelocity=Vector3.new(0,15,0)spinBV.Parent=r
+end
+
+local function setRGB(on)
+	S.rgb=on
+	if rgbCon then rgbCon:Disconnect()rgbCon=nil end
+	if not on then return end
+	rgbCon=RS.Heartbeat:Connect(function()
+		local c=LP.Character if not c then return end
+		local t=tick()*2
+		local col=Color3.fromHSV((t%5)/5,1,1)
+		for _,p in ipairs(c:GetDescendants())do
+			if p:IsA("BasePart")and p.Name~="HumanoidRootPart"then
+				p.Color=col
+			end
+		end
+	end)
+end
+
+local function setTiny(on)
+	S.tiny=on
+	local h=hum()
+	if h then
+		pcall(function()
+			if on then h:ApplyDescriptionReset()
+				-- local scale attempt (visual often local only)
+				for _,p in ipairs(char():GetDescendants())do
+					if p:IsA("BasePart")then p.Size=p.Size*0.5 end
+				end
+			end
+		end)
+	end
+	note("Tiny",on and"local scale attempt"or"off - reset to undo")
 end
 
 local function tp(plr)local t,h=thrp(plr),hrp()if t and h then h.CFrame=t.CFrame*CFrame.new(0,0,3)end end
 
 local function setSpectate(on)
 	S.spec=on
-	if not on then
-		pcall(function()workspace.CurrentCamera.CameraSubject=hum()end)
-		return
-	end
+	if not on then pcall(function()workspace.CurrentCamera.CameraSubject=hum()end)return end
 	if S.sel and S.sel.Character then
 		local h=S.sel.Character:FindFirstChildOfClass("Humanoid")
 		if h then workspace.CurrentCamera.CameraSubject=h end
 	end
 end
 
--- Click TP
 bind(Mouse.Button1Down:Connect(function()
 	if not S.clickTP then return end
 	if UIS:IsKeyDown(Enum.KeyCode.LeftControl)or UIS.TouchEnabled then
@@ -284,13 +302,9 @@ bind(Mouse.Button1Down:Connect(function()
 	end
 end))
 
--- Anti AFK
 bind(LP.Idled:Connect(function()
 	if not S.antiAFK then return end
-	pcall(function()
-		VU:CaptureController()
-		VU:ClickButton2(Vector2.new())
-	end)
+	pcall(function()VU:CaptureController()VU:ClickButton2(Vector2.new())end)
 end))
 
 local function orbit(on)
@@ -315,7 +329,7 @@ local function updateEsp()
 			pcall(function()local o=plr.Character:FindFirstChild("DT_HL")if o then o:Destroy()end end)
 			if S.esp and S.sel==plr then
 				local hl=Instance.new("Highlight")
-				hl.Name="DT_HL"hl.FillColor=Color3.fromRGB(0,255,180)
+				hl.Name="DT_HL"hl.FillColor=ACCENT
 				hl.OutlineColor=Color3.fromRGB(255,255,255)hl.FillTransparency=.55
 				hl.Parent=plr.Character
 			end
@@ -351,98 +365,117 @@ local function spamTarget(on)
 	end)
 end
 
--- ===== GUI =====
-local G=Instance.new("ScreenGui")G.Name="DT5"G.ResetOnSpawn=false G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+-- ===== PREMIUM DARK UI =====
+local G=Instance.new("ScreenGui")G.Name="DT6"G.ResetOnSpawn=false G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 pcall(function()G.Parent=game:GetService("CoreGui")end)if not G.Parent then G.Parent=LP:WaitForChild("PlayerGui")end
 
 local M=Instance.new("Frame",G)
-M.Size=UDim2.new(0,300,0,440)M.Position=UDim2.new(.5,-150,.5,-220)
-M.BackgroundColor3=Color3.fromRGB(12,12,18)M.BorderSizePixel=0 M.Active=true M.Draggable=true
-Instance.new("UICorner",M).CornerRadius=UDim.new(0,12)
-local stroke=Instance.new("UIStroke",M)stroke.Color=Color3.fromRGB(0,255,190)stroke.Thickness=1.2 stroke.Transparency=.3
+M.Size=UDim2.new(0,320,0,460)M.Position=UDim2.new(.5,-160,.5,-230)
+M.BackgroundColor3=BG M.BorderSizePixel=0 M.Active=true M.Draggable=true
+Instance.new("UICorner",M).CornerRadius=UDim.new(0,14)
+local stroke=Instance.new("UIStroke",M)stroke.Color=ACCENT stroke.Thickness=1.4 stroke.Transparency=.25
 
-local Title=Instance.new("TextLabel",M)
-Title.Size=UDim2.new(1,-40,0,28)Title.Position=UDim2.new(0,10,0,4)
-Title.BackgroundTransparency=1 Title.Text="TROLL v5"Title.Font=Enum.Font.GothamBold
-Title.TextSize=15 Title.TextColor3=Color3.fromRGB(0,255,190)Title.TextXAlignment=Enum.TextXAlignment.Left
+-- top bar
+local top=Instance.new("Frame",M)
+top.Size=UDim2.new(1,0,0,40)top.BackgroundColor3=Color3.fromRGB(18,16,28)top.BorderSizePixel=0
+Instance.new("UICorner",top).CornerRadius=UDim.new(0,14)
+local topFix=Instance.new("Frame",top)
+topFix.Size=UDim2.new(1,0,0,14)topFix.Position=UDim2.new(0,0,1,-14)topFix.BackgroundColor3=Color3.fromRGB(18,16,28)topFix.BorderSizePixel=0
 
-local XB=Instance.new("TextButton",M)
-XB.Size=UDim2.new(0,26,0,26)XB.Position=UDim2.new(1,-30,0,5)
-XB.BackgroundColor3=Color3.fromRGB(55,18,24)XB.Text="X"XB.TextColor3=Color3.fromRGB(255,90,110)
-XB.Font=Enum.Font.GothamBold XB.TextSize=12
-Instance.new("UICorner",XB).CornerRadius=UDim.new(0,6)
+local Title=Instance.new("TextLabel",top)
+Title.Size=UDim2.new(1,-50,1,0)Title.Position=UDim2.new(0,14,0,0)
+Title.BackgroundTransparency=1 Title.Text="DELTA TROLL  v6"Title.Font=Enum.Font.GothamBold
+Title.TextSize=15 Title.TextColor3=ACCENT Title.TextXAlignment=Enum.TextXAlignment.Left
 
+local XB=Instance.new("TextButton",top)
+XB.Size=UDim2.new(0,28,0,28)XB.Position=UDim2.new(1,-34,0,6)
+XB.BackgroundColor3=Color3.fromRGB(50,20,35)XB.Text="×"XB.TextColor3=Color3.fromRGB(255,120,140)
+XB.Font=Enum.Font.GothamBold XB.TextSize=16
+Instance.new("UICorner",XB).CornerRadius=UDim.new(0,8)
+
+-- tabs
 local tabs=Instance.new("Frame",M)
-tabs.Size=UDim2.new(1,-12,0,26)tabs.Position=UDim2.new(0,6,0,34)tabs.BackgroundTransparency=1
-local tpad=Instance.new("UIListLayout",tabs)tpad.FillDirection=Enum.FillDirection.Horizontal tpad.Padding=UDim.new(0,4)
+tabs.Size=UDim2.new(1,-16,0,32)tabs.Position=UDim2.new(0,8,0,46)tabs.BackgroundTransparency=1
+local tpad=Instance.new("UIListLayout",tabs)tpad.FillDirection=Enum.FillDirection.Horizontal tpad.Padding=UDim.new(0,5)
 
 local body=Instance.new("ScrollingFrame",M)
-body.Size=UDim2.new(1,-12,1,-68)body.Position=UDim2.new(0,6,0,64)
-body.BackgroundColor3=Color3.fromRGB(18,18,26)body.BorderSizePixel=0 body.ScrollBarThickness=3
-body.AutomaticCanvasSize=Enum.AutomaticSize.Y body.CanvasSize=UDim2.new()
-Instance.new("UICorner",body).CornerRadius=UDim.new(0,8)
+body.Size=UDim2.new(1,-16,1,-90)body.Position=UDim2.new(0,8,0,84)
+body.BackgroundColor3=CARD body.BorderSizePixel=0 body.ScrollBarThickness=3
+body.ScrollBarImageColor3=ACCENT body.AutomaticCanvasSize=Enum.AutomaticSize.Y body.CanvasSize=UDim2.new()
+Instance.new("UICorner",body).CornerRadius=UDim.new(0,10)
 local pad=Instance.new("UIPadding",body)
-pad.PaddingTop=UDim.new(0,6)pad.PaddingBottom=UDim.new(0,6)pad.PaddingLeft=UDim.new(0,6)pad.PaddingRight=UDim.new(0,6)
+pad.PaddingTop=UDim.new(0,8)pad.PaddingBottom=UDim.new(0,8)pad.PaddingLeft=UDim.new(0,8)pad.PaddingRight=UDim.new(0,8)
 
 local pages={}
 local function page(n)
 	local f=Instance.new("Frame",body)
 	f.Size=UDim2.new(1,0,0,0)f.AutomaticSize=Enum.AutomaticSize.Y f.BackgroundTransparency=1 f.Visible=false
-	Instance.new("UIListLayout",f).Padding=UDim.new(0,5)
+	Instance.new("UIListLayout",f).Padding=UDim.new(0,6)
 	pages[n]=f return f
 end
 local function show(n)for k,v in pairs(pages)do v.Visible=k==n end end
+local tabBtns={}
 local function tab(label,n)
 	local b=Instance.new("TextButton",tabs)
-	b.Size=UDim2.new(0,68,1,0)b.BackgroundColor3=Color3.fromRGB(26,30,40)
-	b.Text=label b.Font=Enum.Font.GothamMedium b.TextSize=11 b.TextColor3=Color3.fromRGB(200,235,255)
-	Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)
-	b.MouseButton1Click:Connect(function()show(n)end)
+	b.Size=UDim2.new(0,72,1,0)b.BackgroundColor3=Color3.fromRGB(28,24,40)
+	b.Text=label b.Font=Enum.Font.GothamMedium b.TextSize=11 b.TextColor3=MUTED
+	Instance.new("UICorner",b).CornerRadius=UDim.new(0,8)
+	tabBtns[n]=b
+	b.MouseButton1Click:Connect(function()
+		show(n)
+		for k,btn in pairs(tabBtns)do
+			btn.BackgroundColor3=k==n and ACCENT or Color3.fromRGB(28,24,40)
+			btn.TextColor3=k==n and Color3.fromRGB(255,255,255)or MUTED
+		end
+	end)
 end
 
 local pT,pM,pP,pX=page("T"),page("M"),page("P"),page("X")
-tab("Troll","T")tab("Move","M")tab("Players","P")tab("Misc","X")show("T")
+tab("Troll","T")tab("Move","M")tab("Players","P")tab("Misc","X")
+show("T")
+if tabBtns.T then tabBtns.T.BackgroundColor3=ACCENT tabBtns.T.TextColor3=Color3.fromRGB(255,255,255)end
 
 local function tog(parent,txt,def,cb)
 	local r=Instance.new("Frame",parent)
-	r.Size=UDim2.new(1,0,0,30)r.BackgroundColor3=Color3.fromRGB(26,28,38)
-	Instance.new("UICorner",r).CornerRadius=UDim.new(0,6)
+	r.Size=UDim2.new(1,0,0,32)r.BackgroundColor3=Color3.fromRGB(28,26,40)
+	Instance.new("UICorner",r).CornerRadius=UDim.new(0,8)
 	local l=Instance.new("TextLabel",r)
-	l.Size=UDim2.new(1,-58,1,0)l.Position=UDim2.new(0,8,0,0)l.BackgroundTransparency=1
-	l.Text=txt l.Font=Enum.Font.Gotham l.TextSize=11 l.TextColor3=Color3.fromRGB(230,235,255)l.TextXAlignment=Enum.TextXAlignment.Left
+	l.Size=UDim2.new(1,-60,1,0)l.Position=UDim2.new(0,10,0,0)l.BackgroundTransparency=1
+	l.Text=txt l.Font=Enum.Font.Gotham l.TextSize=12 l.TextColor3=Color3.fromRGB(235,230,255)l.TextXAlignment=Enum.TextXAlignment.Left
 	local on=def or false
 	local b=Instance.new("TextButton",r)
-	b.Size=UDim2.new(0,44,0,20)b.Position=UDim2.new(1,-50,.5,-10)
-	b.BackgroundColor3=on and Color3.fromRGB(0,170,110)or Color3.fromRGB(55,55,70)
+	b.Size=UDim2.new(0,46,0,22)b.Position=UDim2.new(1,-52,.5,-11)
+	b.BackgroundColor3=on and ACCENT or Color3.fromRGB(50,48,65)
 	b.Text=on and"ON"or"OFF"b.Font=Enum.Font.GothamBold b.TextSize=10 b.TextColor3=Color3.new(1,1,1)
-	Instance.new("UICorner",b).CornerRadius=UDim.new(0,5)
+	Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)
 	b.MouseButton1Click:Connect(function()
 		on=not on b.Text=on and"ON"or"OFF"
-		b.BackgroundColor3=on and Color3.fromRGB(0,170,110)or Color3.fromRGB(55,55,70)
+		b.BackgroundColor3=on and ACCENT or Color3.fromRGB(50,48,65)
 		cb(on)
 	end)
 end
 local function btn(parent,txt,cb)
 	local b=Instance.new("TextButton",parent)
-	b.Size=UDim2.new(1,0,0,30)b.BackgroundColor3=Color3.fromRGB(0,110,120)
-	b.Text=txt b.Font=Enum.Font.GothamMedium b.TextSize=11 b.TextColor3=Color3.fromRGB(220,255,255)
-	Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)
+	b.Size=UDim2.new(1,0,0,32)b.BackgroundColor3=Color3.fromRGB(55,40,90)
+	b.Text=txt b.Font=Enum.Font.GothamMedium b.TextSize=12 b.TextColor3=Color3.fromRGB(240,235,255)
+	Instance.new("UICorner",b).CornerRadius=UDim.new(0,8)
+	local st=Instance.new("UIStroke",b)st.Color=ACCENT st.Transparency=.5 st.Thickness=1
 	b.MouseButton1Click:Connect(cb)
 end
 local function sld(parent,txt,a,b,def,cb)
 	local r=Instance.new("Frame",parent)
-	r.Size=UDim2.new(1,0,0,44)r.BackgroundColor3=Color3.fromRGB(26,28,38)
-	Instance.new("UICorner",r).CornerRadius=UDim.new(0,6)
+	r.Size=UDim2.new(1,0,0,46)r.BackgroundColor3=Color3.fromRGB(28,26,40)
+	Instance.new("UICorner",r).CornerRadius=UDim.new(0,8)
 	local l=Instance.new("TextLabel",r)
-	l.Size=UDim2.new(1,-10,0,16)l.Position=UDim2.new(0,8,0,2)l.BackgroundTransparency=1
-	l.Text=txt..": "..def l.Font=Enum.Font.Gotham l.TextSize=11 l.TextColor3=Color3.fromRGB(220,230,255)l.TextXAlignment=Enum.TextXAlignment.Left
+	l.Size=UDim2.new(1,-10,0,16)l.Position=UDim2.new(0,10,0,4)l.BackgroundTransparency=1
+	l.Text=txt..": "..def l.Font=Enum.Font.Gotham l.TextSize=11 l.TextColor3=MUTED l.TextXAlignment=Enum.TextXAlignment.Left
 	local bar=Instance.new("TextButton",r)
-	bar.Size=UDim2.new(1,-16,0,8)bar.Position=UDim2.new(0,8,0,26)
-	bar.BackgroundColor3=Color3.fromRGB(45,50,65)bar.Text=""bar.AutoButtonColor=false
-	Instance.new("UICorner",bar).CornerRadius=UDim.new(0,3)
+	bar.Size=UDim2.new(1,-20,0,8)bar.Position=UDim2.new(0,10,0,28)
+	bar.BackgroundColor3=Color3.fromRGB(40,38,55)bar.Text=""bar.AutoButtonColor=false
+	Instance.new("UICorner",bar).CornerRadius=UDim.new(0,4)
 	local f=Instance.new("Frame",bar)
-	f.Size=UDim2.new((def-a)/(b-a),0,1,0)f.BackgroundColor3=Color3.fromRGB(0,230,180)f.BorderSizePixel=0
-	Instance.new("UICorner",f).CornerRadius=UDim.new(0,3)
+	f.Size=UDim2.new((def-a)/(b-a),0,1,0)f.BackgroundColor3=ACCENT f.BorderSizePixel=0
+	Instance.new("UICorner",f).CornerRadius=UDim.new(0,4)
 	local hold=false
 	local function up(x)
 		local rel=math.clamp((x-bar.AbsolutePosition.X)/math.max(bar.AbsoluteSize.X,1),0,1)
@@ -457,58 +490,59 @@ local function sld(parent,txt,a,b,def,cb)
 	bind(UIS.InputChanged:Connect(function(i)if hold then up(i.Position.X)end end))
 end
 
--- Troll tab
+-- Troll
 local msgRow=Instance.new("Frame",pT)
-msgRow.Size=UDim2.new(1,0,0,34)msgRow.BackgroundColor3=Color3.fromRGB(26,28,38)
-Instance.new("UICorner",msgRow).CornerRadius=UDim.new(0,6)
+msgRow.Size=UDim2.new(1,0,0,36)msgRow.BackgroundColor3=Color3.fromRGB(28,26,40)
+Instance.new("UICorner",msgRow).CornerRadius=UDim.new(0,8)
 msgBox=Instance.new("TextBox",msgRow)
-msgBox.Size=UDim2.new(1,-10,1,-8)msgBox.Position=UDim2.new(0,5,0,4)
-msgBox.BackgroundColor3=Color3.fromRGB(18,18,26)msgBox.Text=""
-msgBox.PlaceholderText="Bubble text..."
+msgBox.Size=UDim2.new(1,-12,1,-8)msgBox.Position=UDim2.new(0,6,0,4)
+msgBox.BackgroundColor3=BG msgBox.Text=""msgBox.PlaceholderText="Custom bubble text..."
 msgBox.Font=Enum.Font.Gotham msgBox.TextSize=12
-msgBox.TextColor3=Color3.fromRGB(255,255,255)msgBox.PlaceholderColor3=Color3.fromRGB(120,130,150)
+msgBox.TextColor3=Color3.fromRGB(255,255,255)msgBox.PlaceholderColor3=MUTED
 msgBox.ClearTextOnFocus=false
-Instance.new("UICorner",msgBox).CornerRadius=UDim.new(0,5)
+Instance.new("UICorner",msgBox).CornerRadius=UDim.new(0,6)
 
 btn(pT,"Send bubble (SYNC)",customSay)
 btn(pT,"Random bad bubble",targetSay)
 tog(pT,"Spam bubbles",false,spamTarget)
-tog(pT,"Sync bubbles",true,function(v)S.sync=v end)
+tog(pT,"Sync to other DT users",true,function(v)S.sync=v end)
 btn(pT,"IY Fling selected",function()if S.sel then iyFling(S.sel)else note("Troll","select player")end end)
 tog(pT,"Loop fling selected",false,loopFling)
-tog(pT,"Walk fling (IY spin)",false,setWalkFling)
+tog(pT,"Walk fling",false,setWalkFling)
 btn(pT,"Mass fling",massFling)
 tog(pT,"Orbit selected",false,orbit)
 tog(pT,"Invisible",false,setInv)
+tog(pT,"RGB body",false,setRGB)
 
--- Move tab
+-- Move
 tog(pM,"Fly",false,setFly)
 tog(pM,"Noclip",false,function(v)S.noclip=v end)
 tog(pM,"Inf Jump",false,function(v)S.ijump=v end)
 tog(pM,"Spin",false,setSpin)
-tog(pM,"Click TP (Ctrl+Click)",false,function(v)S.clickTP=v note("ClickTP",v and"Ctrl+Click to TP"or"off")end)
+tog(pM,"Click TP (Ctrl+Click)",false,function(v)S.clickTP=v end)
 sld(pM,"Speed",16,220,22,function(v)S.spd=v applyStats()end)
 sld(pM,"Jump",50,220,60,function(v)S.jmp=v applyStats()end)
 
--- Players tab
+-- Players
 local pf=Instance.new("Frame",pP)
-pf.Size=UDim2.new(1,0,0,170)pf.BackgroundColor3=Color3.fromRGB(26,28,38)
-Instance.new("UICorner",pf).CornerRadius=UDim.new(0,6)
+pf.Size=UDim2.new(1,0,0,175)pf.BackgroundColor3=Color3.fromRGB(28,26,40)
+Instance.new("UICorner",pf).CornerRadius=UDim.new(0,8)
 local ps=Instance.new("ScrollingFrame",pf)
 ps.Size=UDim2.new(1,-8,1,-8)ps.Position=UDim2.new(0,4,0,4)
-ps.BackgroundTransparency=1 ps.ScrollBarThickness=3 ps.AutomaticCanvasSize=Enum.AutomaticSize.Y ps.CanvasSize=UDim2.new()
-Instance.new("UIListLayout",ps).Padding=UDim.new(0,3)
+ps.BackgroundTransparency=1 ps.ScrollBarThickness=3 ps.ScrollBarImageColor3=ACCENT
+ps.AutomaticCanvasSize=Enum.AutomaticSize.Y ps.CanvasSize=UDim2.new()
+Instance.new("UIListLayout",ps).Padding=UDim.new(0,4)
 
 local function refresh()
 	for _,c in ipairs(ps:GetChildren())do if c:IsA("TextButton")then c:Destroy()end end
 	for _,plr in ipairs(P:GetPlayers())do
 		if plr~=LP then
 			local b=Instance.new("TextButton",ps)
-			b.Size=UDim2.new(1,-2,0,24)
-			b.BackgroundColor3=S.sel==plr and Color3.fromRGB(0,140,120)or Color3.fromRGB(34,38,50)
+			b.Size=UDim2.new(1,-2,0,26)
+			b.BackgroundColor3=S.sel==plr and ACCENT or Color3.fromRGB(36,34,50)
 			b.Text=plr.DisplayName.." (@"..plr.Name..")"
-			b.Font=Enum.Font.Gotham b.TextSize=11 b.TextColor3=Color3.fromRGB(230,240,255)
-			Instance.new("UICorner",b).CornerRadius=UDim.new(0,5)
+			b.Font=Enum.Font.Gotham b.TextSize=11 b.TextColor3=Color3.fromRGB(240,235,255)
+			Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)
 			b.MouseButton1Click:Connect(function()S.sel=plr refresh()updateEsp()note("Sel",plr.Name)end)
 		end
 	end
@@ -529,9 +563,10 @@ tog(pX,"Anti-AFK",true,function(v)S.antiAFK=v end)
 btn(pX,"Reset character",function()local h=hum()if h then h.Health=0 end end)
 local function kill()
 	S.fly=false S.noclip=false S.ijump=false S.spam=false
-	S.fling=false S.loopFling=false S.orbit=false S.walkFling=false S.spin=false S.spec=false
-	setFly(false)setWalkFling(false)setSpin(false)setSpectate(false)
+	S.fling=false S.loopFling=false S.orbit=false S.walkFling=false S.spin=false S.spec=false S.rgb=false
+	setFly(false)setWalkFling(false)setSpin(false)setSpectate(false)setRGB(false)
 	for _,c in ipairs(con)do pcall(function()c:Disconnect()end)end
+	if rgbCon then rgbCon:Disconnect()end
 	G:Destroy()
 end
 btn(pX,"DESTROY GUI",kill)
@@ -543,6 +578,7 @@ LP.CharacterAdded:Connect(function()
 	if S.fly then setFly(true)end
 	if S.spin then setSpin(true)end
 	if S.walkFling then setWalkFling(true)end
+	if S.rgb then setRGB(true)end
 end)
 
-note("Troll v5","IY fling + walkfling + clickTP loaded")
+note("Delta Troll v6","Premium UI loaded")

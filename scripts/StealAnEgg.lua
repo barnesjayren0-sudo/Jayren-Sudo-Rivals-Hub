@@ -1,7 +1,8 @@
 --[[
-  STEAL AN EGG v6 | Jayren Hub
+  STEAL AN EGG v6.1 | Jayren Hub
   GUI: Rayfield (clean / modern)
   Farm: Walk default | Instant TP (Potato) optional
+  CACHE_BUST: 2026-09-19-v61
 
   loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/scripts/StealAnEgg.lua"))()
 ]]
@@ -11,7 +12,7 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Window = Rayfield:CreateWindow({
 	Name = "Steal an Egg  ·  Jayren",
 	LoadingTitle = "Jayren Hub",
-	LoadingSubtitle = "Steal an Egg v6",
+	LoadingSubtitle = "Steal an Egg v6.1",
 	Theme = "Default",
 	ToggleUIKeybind = "K",
 	ConfigurationSaving = {
@@ -548,7 +549,7 @@ SettingsTab:CreateButton({
 
 InfoTab:CreateSection("About")
 InfoTab:CreateParagraph({
-	Title = "Steal an Egg v6",
+	Title = "Steal an Egg v6.1",
 	Content = "Walk = safer (default). Instant Steal = Potato TP (save → egg → hold → carry → return). Toggle UI with K.",
 })
 InfoTab:CreateParagraph({
@@ -558,6 +559,6 @@ InfoTab:CreateParagraph({
 
 Rayfield:Notify({
 	Title = "Jayren Hub",
-	Content = "Steal an Egg v6 loaded · Press K to toggle UI",
+	Content = "Steal an Egg v6.1 loaded · Press K to toggle UI",
 	Duration = 6,
 })

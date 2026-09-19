@@ -1,63 +1,44 @@
 --[[
-  STEAL AN EGG v2 | Jayren Hub
-  Base: who-is-eze / Vaehz fixed remotes
-  Upgrades: rarity priority, tween move, anti-AFK, self GUI, safer loop
+  STEAL AN EGG v3 | Jayren Hub
+  Restored original who-is-eze / Vaehz farm loop (walk + HipHeight)
+  UI: original vaehzlib (same as base)
+  Optional: rarer-egg pick, anti-AFK
 
   loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/scripts/StealAnEgg.lua"))()
 ]]
 
-local Players = game:GetService("Players")
-local RS = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/who-is-eze/stealanegg-fixed/refs/heads/main/vaehzlibCustom.lua"))()
+local Window = Library:CreateWindow({ Title = "Steal an Egg v3", Accent = Color3.fromRGB(100, 160, 255) })
+
+local FarmTab = Window:CreateTab({ Name = "Autofarms", Icon = "wheat" })
+local CredTab = Window:CreateTab({ Name = "Credits", Icon = "circle-i" })
+
+local RunService = game:GetService("RunService")
 local VU = game:GetService("VirtualUser")
-local SG = game:GetService("StarterGui")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
 
-local LP = Players.LocalPlayer
+getgenv().FarmEggs = false
+getgenv().AutoPlace = false
+getgenv().AutoFarm = false
+getgenv().AutoHatch = false
+getgenv().AutoEquip = false
+getgenv().PriorityRarest = false
+getgenv().AntiAFK = true
+getgenv().ChosenArea = "Automatic"
 
-local CFG = {
-	autoFarm = false,
-	autoCollect = true,
-	autoPlace = true,
-	autoHatch = true,
-	autoEquip = true,
-	antiAFK = true,
-	useTween = true,
-	priorityRarest = true,
-	chosenArea = "Automatic",
-	tweenSpeed = 80,
-}
+local Player = game:GetService("Players").LocalPlayer
+local SpeedVal = Player:WaitForChild("leaderstats"):WaitForChild("Speed")
 
-local function note(t, m)
-	pcall(function()
-		SG:SetCore("SendNotification", { Title = t, Text = m, Duration = 3 })
+local PlayerBase
+for _, base in pairs(workspace:WaitForChild("Plots"):GetChildren()) do
+	local ok, match = pcall(function()
+		return base.PlotSign.PlayerPlotSign.Frame.PlayerIcon.Image:find(tostring(Player.UserId))
 	end)
-end
-
--- Remotes (from fixed stealanegg)
-local Net = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("Networking")
-local StealEvent = Net:WaitForChild("RF/EggWorld/AskFieldEggCarry")
-local PlaceEvent = Net:WaitForChild("RF/EggWorld/AskPlaceEgg")
-local HatchEvent = Net:WaitForChild("RF/EggWorld/AskHatch")
-local EquipEvent = Net:WaitForChild("RF/EggWorld/AskWearTool")
-local CompleteHatchEvent = Net:WaitForChild("RF/EggWorld/AskFinishHatch")
-local InventoryEvent = Net:WaitForChild("RE/EggWorld/OwnerShifted")
-
-local SpeedVal = LP:WaitForChild("leaderstats"):WaitForChild("Speed")
-
-local function getPlayerBase()
-	for _, base in pairs(workspace:WaitForChild("Plots"):GetChildren()) do
-		local ok, match = pcall(function()
-			return base.PlotSign.PlayerPlotSign.Frame.PlayerIcon.Image:find(tostring(LP.UserId))
-		end)
-		if ok and match then
-			return base
-		end
+	if ok and match then
+		PlayerBase = base
+		break
 	end
 end
 
-local PlayerBase = getPlayerBase()
 local GuardAreas = workspace:WaitForChild("__OBJECTS"):WaitForChild("Areas"):WaitForChild("GuardAreas")
 local SpawnedEggs = workspace:WaitForChild("AreaEggSlotsClient")
 
@@ -68,6 +49,19 @@ for _, v in pairs(workspace:GetChildren()) do
 		break
 	end
 end
+
+local AreasList = { "Automatic" }
+for _, v in pairs(GuardAreas:GetChildren()) do
+	table.insert(AreasList, v.Name)
+end
+
+local Net = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("Networking")
+local StealEvent = Net:WaitForChild("RF/EggWorld/AskFieldEggCarry")
+local PlaceEvent = Net:WaitForChild("RF/EggWorld/AskPlaceEgg")
+local HatchEvent = Net:WaitForChild("RF/EggWorld/AskHatch")
+local EquipEvent = Net:WaitForChild("RF/EggWorld/AskWearTool")
+local CompleteHatchEvent = Net:WaitForChild("RF/EggWorld/AskFinishHatch")
+local InventoryEvent = Net:WaitForChild("RE/EggWorld/OwnerShifted")
 
 local Areas = {
 	["Forest"] = { Speed = 0 },
@@ -84,55 +78,68 @@ local Areas = {
 	["Light Dark"] = { Speed = 20000000000 },
 }
 
-local RarityRank = {
-	Secret = 100,
-	Eternal = 90,
-	Divine = 80,
-	Cosmic = 70,
-	Mythic = 60,
-	Legendary = 50,
-	Epic = 40,
-	Rare = 30,
-	Uncommon = 20,
-	Common = 10,
-}
-
 local Waypoints = {
 	SafeArea = Vector3.new(542, 71, -363),
 }
 
+local RarityRank = {
+	Secret = 100, Eternal = 90, Divine = 80, Cosmic = 70, Mythic = 60,
+	Legendary = 50, Epic = 40, Rare = 30, Uncommon = 20, Common = 10,
+}
+
 local LastInventory
 InventoryEvent.OnClientEvent:Connect(function(data)
-	if data and data.OwnerUserId == LP.UserId then
+	if data and data.OwnerUserId == Player.UserId then
 		LastInventory = data.Records
 	end
 end)
 
-local function getBestArea()
+local function GetBestArea()
 	local currentSpeed = SpeedVal.Value
-	if CFG.chosenArea ~= "Automatic" then
-		return CFG.chosenArea
-	end
 	local bestName, bestSpeed = nil, -1
-	for name, data in pairs(Areas) do
-		if data.Speed <= currentSpeed and data.Speed > bestSpeed then
-			bestName = name
-			bestSpeed = data.Speed
+	if ChosenArea == "Automatic" then
+		for name, data in pairs(Areas) do
+			if data.Speed <= currentSpeed and data.Speed > bestSpeed then
+				bestName = name
+				bestSpeed = data.Speed
+			end
+		end
+	else
+		bestName = ChosenArea
+	end
+	return bestName
+end
+
+-- ORIGINAL walk method (this is what actually worked)
+local function walkTo(hum, pos)
+	local hrp = hum.RootPart
+	while true do
+		hum:MoveTo(pos)
+		local reached = hum.MoveToFinished:Wait()
+		if reached then
+			return true
+		end
+		if hrp and hrp.Parent then
+			local flat = (Vector2.new(hrp.Position.X, hrp.Position.Z)
+				- Vector2.new(pos.X, pos.Z)).Magnitude
+			if flat <= 4 then
+				return true
+			end
+		else
+			return false
 		end
 	end
-	return bestName or "Forest"
 end
 
 local function eggScore(egg)
 	local score = 0
-	local name = string.lower(egg.Name or "")
+	local n = string.lower(tostring(egg.Name))
 	for rarity, rank in pairs(RarityRank) do
-		if name:find(string.lower(rarity)) then
+		if n:find(string.lower(rarity)) then
 			score = rank
 			break
 		end
 	end
-	-- attribute fallback
 	pcall(function()
 		local r = egg:GetAttribute("Rarity") or egg:GetAttribute("rarity")
 		if r and RarityRank[tostring(r)] then
@@ -142,289 +149,242 @@ local function eggScore(egg)
 	return score
 end
 
-local function pickEgg(fromPos)
-	local best, bestScore, bestDist = nil, -1, math.huge
+local function pickEgg(char)
+	local closestEgg, closestDist, bestScore = nil, nil, -1
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not root then return nil end
+
 	for _, v in pairs(SpawnedEggs:GetChildren()) do
-		local pp = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
-		if pp then
-			local dist = (pp.Position - fromPos).Magnitude
-			local score = eggScore(v)
-			if CFG.priorityRarest then
-				if score > bestScore or (score == bestScore and dist < bestDist) then
+		local primaryPart = v.PrimaryPart
+		if primaryPart then
+			local dist = (primaryPart.Position - root.Position).Magnitude
+			if PriorityRarest then
+				local score = eggScore(v)
+				if score > bestScore or (score == bestScore and (not closestDist or dist < closestDist)) then
 					bestScore = score
-					bestDist = dist
-					best = v
+					closestDist = dist
+					closestEgg = v
 				end
 			else
-				if dist < bestDist then
-					bestDist = dist
-					best = v
+				-- original: nearest only
+				if not closestDist or dist < closestDist then
+					closestDist = dist
+					closestEgg = v
 				end
 			end
 		end
 	end
-	return best
+	return closestEgg
 end
 
-local function moveTo(pos)
-	local char = LP.Character
-	if not char then return false end
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hum or not hrp then return false end
-
-	if CFG.useTween then
-		local dist = (hrp.Position - pos).Magnitude
-		local t = math.clamp(dist / math.max(CFG.tweenSpeed, 20), 0.15, 6)
-		local tw = TweenService:Create(
-			hrp,
-			TweenInfo.new(t, Enum.EasingStyle.Linear),
-			{ CFrame = CFrame.new(pos + Vector3.new(0, 3, 0)) }
-		)
-		tw:Play()
-		tw.Completed:Wait()
-		return true
-	end
-
-	-- walk fallback
-	local deadline = tick() + 12
-	while tick() < deadline do
-		hum:MoveTo(pos)
-		local done = hum.MoveToFinished:Wait()
-		if done then return true end
-		local flat = (Vector2.new(hrp.Position.X, hrp.Position.Z) - Vector2.new(pos.X, pos.Z)).Magnitude
-		if flat <= 5 then return true end
-	end
-	return false
-end
-
-local noclipConn
-local function setNoclip(on)
-	if noclipConn then
-		noclipConn:Disconnect()
-		noclipConn = nil
-	end
-	if not on then return end
-	noclipConn = RS.Stepped:Connect(function()
-		local c = LP.Character
-		if not c then return end
-		for _, p in ipairs(c:GetDescendants()) do
-			if p:IsA("BasePart") then
-				p.CanCollide = false
-			end
-		end
-	end)
-end
-
-LP.Idled:Connect(function()
-	if not CFG.antiAFK then return end
+Player.Idled:Connect(function()
+	if not AntiAFK then return end
 	pcall(function()
 		VU:CaptureController()
 		VU:ClickButton2(Vector2.new())
 	end)
 end)
 
-local function farmOnce()
-	local char = LP.Character
-	if not char then return end
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hum or not hrp then return end
-
-	setNoclip(true)
-
-	if CFG.autoCollect then
-		local areaName = getBestArea()
-		local area = GuardAreas:FindFirstChild(areaName)
-		moveTo(Waypoints.SafeArea)
-		if area and area:FindFirstChild("Bounds") then
-			moveTo(area.Bounds.Position)
-		end
-
-		local egg = pickEgg(hrp.Position)
-		if egg then
-			local pp = egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart")
-			if pp then
-				moveTo(pp.Position)
-				task.wait(0.25)
+FarmTab:CreateToggle({
+	Name = "Auto Farm",
+	Default = false,
+	Callback = function(v)
+		AutoFarm = v
+		if AutoFarm then
+			while AutoFarm do
 				pcall(function()
-					StealEvent:InvokeServer({ Uid = egg.Name })
-				end)
-				note("Steal", egg.Name)
-			end
-		end
-		moveTo(Waypoints.SafeArea)
-	end
+					local NoclipParts = {}
+					local Noclipping
 
-	if CFG.autoPlace and LastInventory and PlayerBase and PlayerBase:FindFirstChild("CenterPoint") then
-		moveTo(PlayerBase.CenterPoint.Position)
-		for uid, _ in pairs(LastInventory) do
-			pcall(function()
-				PlaceEvent:InvokeServer({
-					Uid = uid,
-					LocalCFrame = CFrame.new(
-						math.random(-20, 20),
-						-0.5,
-						math.random(-25, 25)
-					),
-				})
-			end)
-			task.wait(0.05)
-		end
-	end
+					local Character = Player.Character
+					if not Character then return end
+					local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+					if not Humanoid then return end
 
-	if CFG.autoHatch and PlacedEggs then
-		for _, v in pairs(PlacedEggs:GetChildren()) do
-			local parts = string.split(v.Name, "_")
-			if parts[1] == tostring(LP.UserId) and v.PrimaryPart then
-				moveTo(v.PrimaryPart.Position)
-				local ok, res = pcall(function()
-					return HatchEvent:InvokeServer(parts[2])
-				end)
-				if ok and res then
-					pcall(function()
-						CompleteHatchEvent:InvokeServer(parts[2])
+					Noclipping = RunService.Stepped:Connect(function()
+						if AutoFarm and Player.Character ~= nil then
+							for _, child in pairs(Player.Character:GetDescendants()) do
+								if child:IsA("BasePart") and child.CanCollide == true then
+									child.CanCollide = false
+									NoclipParts[child] = true
+								end
+							end
+						end
 					end)
-				end
-				task.wait(0.1)
+
+					if FarmEggs then
+						local bestAreaName = GetBestArea()
+						local bestArea = bestAreaName and GuardAreas:FindFirstChild(bestAreaName)
+
+						-- ORIGINAL hipheight + walk path (do not replace with tween)
+						Humanoid.HipHeight = 20
+						task.wait(0.1)
+						walkTo(Humanoid, Waypoints.SafeArea)
+						Humanoid.HipHeight = 2
+						task.wait(0.1)
+
+						if bestArea and bestArea:FindFirstChild("Bounds") then
+							walkTo(Humanoid, bestArea.Bounds.Position)
+						end
+
+						local closestEgg = pickEgg(Character)
+						if closestEgg and closestEgg.PrimaryPart then
+							walkTo(Humanoid, closestEgg.PrimaryPart.Position)
+							task.wait(0.5)
+							walkTo(Humanoid, closestEgg.PrimaryPart.Position)
+							task.wait()
+
+							StealEvent:InvokeServer({
+								Uid = closestEgg.Name,
+							})
+						end
+
+						walkTo(Humanoid, Waypoints.SafeArea)
+					end
+
+					task.wait(0.5)
+
+					if AutoPlace and LastInventory ~= nil and PlayerBase and PlayerBase:FindFirstChild("CenterPoint") then
+						Humanoid.HipHeight = 20
+						task.wait(0.1)
+						walkTo(Humanoid, PlayerBase.CenterPoint.Position)
+
+						for i, _ in pairs(LastInventory) do
+							local randomArea = CFrame.new(
+								math.random(-23, 23),
+								-0.5001220703125,
+								math.random(-29, 29),
+								0, 0, 1, 0, 1, 0, -1, 0, 0
+							)
+							PlaceEvent:InvokeServer({
+								Uid = i,
+								LocalCFrame = randomArea,
+							})
+							task.wait()
+						end
+					end
+
+					if AutoHatch and PlacedEggs then
+						for _, v in pairs(PlacedEggs:GetChildren()) do
+							local splitString = v.Name:split("_")
+							if splitString[1] == tostring(Player.UserId) and v.PrimaryPart then
+								Humanoid.HipHeight = 20
+								task.wait(0.1)
+								walkTo(Humanoid, v.PrimaryPart.Position)
+
+								local res = HatchEvent:InvokeServer(splitString[2])
+								if res then
+									CompleteHatchEvent:InvokeServer(splitString[2])
+								end
+								task.wait(0.1)
+							end
+						end
+					end
+
+					if AutoEquip then
+						EquipEvent:InvokeServer()
+					end
+
+					if Noclipping then
+						Noclipping:Disconnect()
+						Noclipping = nil
+					end
+					for part in pairs(NoclipParts) do
+						if part and part.Parent then
+							part.CanCollide = true
+						end
+					end
+					NoclipParts = {}
+
+					task.wait(1)
+				end)
+				task.wait()
 			end
 		end
-	end
+	end,
+})
 
-	if CFG.autoEquip then
-		pcall(function()
-			EquipEvent:InvokeServer()
-		end)
-	end
+FarmTab:CreateLabel("Settings")
 
-	setNoclip(false)
-end
+FarmTab:CreateToggle({
+	Name = "Auto Collect",
+	Default = false,
+	Callback = function(v)
+		FarmEggs = v
+	end,
+})
 
-task.spawn(function()
-	while true do
-		if CFG.autoFarm then
-			pcall(farmOnce)
-		end
-		task.wait(0.35)
-	end
-end)
+FarmTab:CreateDropdown({
+	Name = "Area",
+	Options = AreasList,
+	Multi = false,
+	Callback = function(v)
+		ChosenArea = v
+	end,
+})
 
--- ===== Simple dark GUI =====
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "JayStealEgg"
-Gui.ResetOnSpawn = false
-pcall(function()
-	Gui.Parent = game:GetService("CoreGui")
-end)
-if not Gui.Parent then
-	Gui.Parent = LP:WaitForChild("PlayerGui")
-end
+FarmTab:CreateToggle({
+	Name = "Auto Place",
+	Default = false,
+	Callback = function(v)
+		AutoPlace = v
+	end,
+})
 
-local Main = Instance.new("Frame", Gui)
-Main.Size = UDim2.new(0, 280, 0, 360)
-Main.Position = UDim2.new(0.5, -140, 0.5, -180)
-Main.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+FarmTab:CreateToggle({
+	Name = "Auto Hatch",
+	Default = false,
+	Callback = function(v)
+		AutoHatch = v
+	end,
+})
 
-local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, -40, 0, 36)
-Title.Position = UDim2.new(0, 12, 0, 4)
-Title.BackgroundTransparency = 1
-Title.Text = "Steal an Egg v2"
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
-Title.TextColor3 = Color3.fromRGB(100, 180, 255)
-Title.TextXAlignment = Enum.TextXAlignment.Left
+FarmTab:CreateToggle({
+	Name = "Auto Equip",
+	Default = false,
+	Callback = function(v)
+		AutoEquip = v
+	end,
+})
 
-local Close = Instance.new("TextButton", Main)
-Close.Size = UDim2.new(0, 28, 0, 28)
-Close.Position = UDim2.new(1, -34, 0, 6)
-Close.BackgroundColor3 = Color3.fromRGB(50, 30, 35)
-Close.Text = "X"
-Close.TextColor3 = Color3.fromRGB(255, 120, 140)
-Close.Font = Enum.Font.GothamBold
-Close.TextSize = 14
-Instance.new("UICorner", Close).CornerRadius = UDim.new(0, 8)
-Close.MouseButton1Click:Connect(function()
-	CFG.autoFarm = false
-	Gui:Destroy()
-end)
+FarmTab:CreateToggle({
+	Name = "Priority Rarest Egg",
+	Default = false,
+	Callback = function(v)
+		PriorityRarest = v
+	end,
+})
 
-local list = Instance.new("ScrollingFrame", Main)
-list.Size = UDim2.new(1, -20, 1, -50)
-list.Position = UDim2.new(0, 10, 0, 42)
-list.BackgroundTransparency = 1
-list.ScrollBarThickness = 4
-list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-list.CanvasSize = UDim2.new()
-Instance.new("UIListLayout", list).Padding = UDim.new(0, 6)
+FarmTab:CreateToggle({
+	Name = "Anti-AFK",
+	Default = true,
+	Callback = function(v)
+		AntiAFK = v
+	end,
+})
 
-local function addToggle(name, key, default)
-	CFG[key] = default
-	local row = Instance.new("Frame", list)
-	row.Size = UDim2.new(1, 0, 0, 32)
-	row.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-	Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
-	local lab = Instance.new("TextLabel", row)
-	lab.Size = UDim2.new(1, -60, 1, 0)
-	lab.Position = UDim2.new(0, 10, 0, 0)
-	lab.BackgroundTransparency = 1
-	lab.Text = name
-	lab.Font = Enum.Font.Gotham
-	lab.TextSize = 13
-	lab.TextColor3 = Color3.fromRGB(230, 230, 240)
-	lab.TextXAlignment = Enum.TextXAlignment.Left
-	local btn = Instance.new("TextButton", row)
-	btn.Size = UDim2.new(0, 48, 0, 22)
-	btn.Position = UDim2.new(1, -54, 0.5, -11)
-	btn.BackgroundColor3 = default and Color3.fromRGB(60, 140, 80) or Color3.fromRGB(55, 55, 70)
-	btn.Text = default and "ON" or "OFF"
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 11
-	btn.TextColor3 = Color3.new(1, 1, 1)
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-	btn.MouseButton1Click:Connect(function()
-		CFG[key] = not CFG[key]
-		btn.Text = CFG[key] and "ON" or "OFF"
-		btn.BackgroundColor3 = CFG[key] and Color3.fromRGB(60, 140, 80) or Color3.fromRGB(55, 55, 70)
-		if key == "autoFarm" then
-			note("Farm", CFG.autoFarm and "STARTED" or "STOPPED")
-		end
-	end)
-end
+FarmTab:CreateToggle({
+	Name = "Disable 3D Rendering",
+	Default = false,
+	Callback = function(v)
+		RunService:Set3dRenderingEnabled(not v)
+	end,
+})
 
-addToggle("Auto Farm (master)", "autoFarm", false)
-addToggle("Auto Collect Eggs", "autoCollect", true)
-addToggle("Priority Rarest", "priorityRarest", true)
-addToggle("Tween Move", "useTween", true)
-addToggle("Auto Place", "autoPlace", true)
-addToggle("Auto Hatch", "autoHatch", true)
-addToggle("Auto Equip", "autoEquip", true)
-addToggle("Anti-AFK", "antiAFK", true)
+CredTab:CreateLabel("Script Credits")
+CredTab:CreateLabel({
+	Text = "Original: Vaehz | Fixed: Eze",
+	Size = 20,
+	Color = Color3.fromRGB(100, 160, 255),
+})
+CredTab:CreateLabel({
+	Text = "Hub port: Jayren v3 (original loop restored)",
+	Size = 16,
+	Color = Color3.fromRGB(200, 200, 210),
+})
 
--- Area dropdown as cycle button
-do
-	local areas = { "Automatic" }
-	for _, a in pairs(GuardAreas:GetChildren()) do
-		table.insert(areas, a.Name)
-	end
-	local idx = 1
-	local row = Instance.new("TextButton", list)
-	row.Size = UDim2.new(1, 0, 0, 32)
-	row.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-	row.Text = "Area: Automatic"
-	row.Font = Enum.Font.Gotham
-	row.TextSize = 13
-	row.TextColor3 = Color3.fromRGB(200, 220, 255)
-	Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
-	row.MouseButton1Click:Connect(function()
-		idx = idx % #areas + 1
-		CFG.chosenArea = areas[idx]
-		row.Text = "Area: " .. areas[idx]
-	end)
-end
-
-note("Steal an Egg v2", "GUI loaded — turn Auto Farm ON")
+Library:Notify({
+	Title = "Steal an Egg v3",
+	Content = "Original farm loop restored",
+	Duration = 5,
+})

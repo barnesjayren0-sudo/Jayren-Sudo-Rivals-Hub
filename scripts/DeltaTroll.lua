@@ -1,34 +1,40 @@
 --[[
-  DELTA TROLL v6 | Premium dark UI | FE physics only | keyless
+  DELTA TROLL v7 | Advanced FE physics | keyless
   loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/scripts/DeltaTroll.lua"))()
 
-  Local tools only. No websocket control of other clients.
-  UI inspired by modern exploit hub style (dark + neon accent).
+  Advanced techniques used:
+  - Network-ownership spin fling (IY-class)
+  - Soft vs Rage fling (randomized angular bursts)
+  - Local anti-fling: zero velocity + disable collide on fast others
+  - Humanized delays on loop fling
+  - Speed clamped by default to reduce instant flags
+
+  HONEST LIMIT: No script bypasses every anticheat.
+  Server-side AC that checks angular velocity / missing parts can still flag you.
 ]]
 local P=game:GetService("Players")
 local RS=game:GetService("RunService")
 local UIS=game:GetService("UserInputService")
 local SG=game:GetService("StarterGui")
 local VU=game:GetService("VirtualUser")
-local TS=game:GetService("TweenService")
 local LP=P.LocalPlayer
 local Mouse=LP:GetMouse()
 
-local ACCENT=Color3.fromRGB(140,80,255) -- purple neon hub style
+local ACCENT=Color3.fromRGB(140,80,255)
 local BG=Color3.fromRGB(14,12,20)
 local CARD=Color3.fromRGB(22,20,32)
 local MUTED=Color3.fromRGB(160,155,180)
 
 local S={
 	fly=false,noclip=false,ijump=false,inv=false,
-	spd=22,jmp=60,sel=nil,
+	spd=20,jmp=55,sel=nil,
 	fling=false,loopFling=false,walkFling=false,
 	spam=false,anti=true,esp=true,orbit=false,sync=true,
 	clickTP=false,spec=false,spin=false,antiAFK=true,
-	rgb=false,tiny=false
+	rgb=false,softFling=true -- soft = less obvious spin
 }
 local con,bv,bg,msgBox,spinBV,rgbCon={}
-local PREFIX="DT6|"
+local PREFIX="DT7|"
 
 local function bind(c)con[#con+1]=c return c end
 local function char()return LP.Character or LP.CharacterAdded:Wait()end
@@ -36,10 +42,11 @@ local function hrp(c)c=c or char()return c and c:FindFirstChild("HumanoidRootPar
 local function hum(c)c=c or char()return c and c:FindFirstChildOfClass("Humanoid")end
 local function thrp(plr)return plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")end
 local function note(t,m)pcall(function()SG:SetCore("SendNotification",{Title=t,Text=m,Duration=2})end)end
+local function rand(a,b)return a+math.random()*(b-a)end
 
 local BAD={"shut the fuck up","you're so trash","ez mid","cry more noob","skill issue idiot","ratio + L","get good loser","nobody asked","stfu","touch grass","absolute dogwater","delete the game","bot account","free kill","trash player","L + ratio","mid ahh","cope harder"}
 
--- bubbles + sync
+-- bubbles
 local function bubbleOn(plr,text,secs)
 	if not plr or not plr.Character then return end
 	local h=plr.Character:FindFirstChild("Head")or thrp(plr)
@@ -95,42 +102,72 @@ end)
 for _,plr in ipairs(P:GetPlayers())do bind(plr.Chatted:Connect(handleIncoming))end
 P.PlayerAdded:Connect(function(plr)bind(plr.Chatted:Connect(handleIncoming))end)
 
--- IY fling
+-- ===== ADVANCED FLING =====
+-- Soft: lower spin, short bursts, random gaps (harder for simple velocity AC)
+-- Rage: classic IY 99999 alternate
+local function spinPower()
+	if S.softFling then return rand(8000,18000) end
+	return 99999
+end
+
 local function iyFling(targetPlr)
 	local root=hrp()
 	local c=char()
 	if not root or not c or S.fling then return end
 	S.fling=true
+
+	-- density on parts (helps collision transfer)
 	for _,child in pairs(c:GetDescendants())do
 		if child:IsA("BasePart")then
-			pcall(function()child.CustomPhysicalProperties=PhysicalProperties.new(math.huge,0.3,0.5)end)
+			pcall(function()
+				child.CustomPhysicalProperties=PhysicalProperties.new(
+					S.softFling and 50 or math.huge, 0.3, 0.5)
+			end)
 		end
 	end
+
 	local bang=Instance.new("BodyAngularVelocity")
-	bang.Name="DT6_IY"bang.Parent=root
-	bang.AngularVelocity=Vector3.new(0,99999,0)
+	bang.Name="DT7_IY"bang.Parent=root
 	bang.MaxTorque=Vector3.new(0,math.huge,0)bang.P=math.huge
+	bang.AngularVelocity=Vector3.new(0,spinPower(),0)
+
 	for _,v in ipairs(c:GetChildren())do
 		if v:IsA("BasePart")then
 			v.CanCollide=false v.Massless=true
 			pcall(function()v.AssemblyLinearVelocity=Vector3.zero end)
 		end
 	end
-	if root then root.CanCollide=true root.Massless=false end
+	root.CanCollide=true root.Massless=false
+
+	local duration=S.softFling and rand(1.2,1.8) or 2.4
 	local t0=tick()
 	local cn
 	cn=RS.Heartbeat:Connect(function()
-		if tick()-t0>2.5 or not S.fling then
+		if tick()-t0>duration or not S.fling then
 			pcall(function()bang:Destroy()end)
 			if cn then cn:Disconnect()end
 			S.fling=false
+			-- restore collide briefly
+			pcall(function()
+				for _,v in ipairs(c:GetChildren())do
+					if v:IsA("BasePart")then v.Massless=false end
+				end
+			end)
 			return
 		end
 		local t=targetPlr and thrp(targetPlr)
 		pcall(function()
-			if t then root.CFrame=t.CFrame end
-			if (tick()*5)%1<0.55 then bang.AngularVelocity=Vector3.new(0,99999,0)
-			else bang.AngularVelocity=Vector3.zero end
+			if t then
+				-- slight offset so collision is more reliable
+				root.CFrame=t.CFrame*CFrame.new(0,0,0.15)
+			end
+			-- alternate pulse (IY method) with jitter
+			local phase=(tick()* (S.softFling and 4 or 5))%1
+			if phase<0.5 then
+				bang.AngularVelocity=Vector3.new(0,spinPower(),0)
+			else
+				bang.AngularVelocity=Vector3.zero
+			end
 		end)
 	end)
 end
@@ -140,7 +177,7 @@ local function setWalkFling(on)
 	if not on then
 		S.fling=false
 		local r=hrp()
-		if r then for _,v in ipairs(r:GetChildren())do if v.Name=="DT6_WF"then v:Destroy()end end end
+		if r then for _,v in ipairs(r:GetChildren())do if v.Name=="DT7_WF"then v:Destroy()end end end
 		return
 	end
 	task.spawn(function()
@@ -148,21 +185,22 @@ local function setWalkFling(on)
 			local root=hrp()
 			local c=char()
 			if root and c then
-				if not root:FindFirstChild("DT6_WF")then
+				if not root:FindFirstChild("DT7_WF")then
 					for _,child in pairs(c:GetDescendants())do
 						if child:IsA("BasePart")then
-							pcall(function()child.CustomPhysicalProperties=PhysicalProperties.new(math.huge,0.3,0.5)end)
+							pcall(function()child.CustomPhysicalProperties=PhysicalProperties.new(50,0.3,0.5)end)
 							if child~=root then child.CanCollide=false child.Massless=true end
 						end
 					end
 					root.CanCollide=true root.Massless=false
 					local bang=Instance.new("BodyAngularVelocity")
-					bang.Name="DT6_WF"bang.Parent=root
+					bang.Name="DT7_WF"bang.Parent=root
 					bang.MaxTorque=Vector3.new(0,math.huge,0)bang.P=math.huge
 				end
-				local bang=root:FindFirstChild("DT6_WF")
+				local bang=root:FindFirstChild("DT7_WF")
 				if bang then
-					if (tick()*5)%1<0.55 then bang.AngularVelocity=Vector3.new(0,99999,0)
+					local phase=(tick()*4)%1
+					if phase<0.45 then bang.AngularVelocity=Vector3.new(0,spinPower(),0)
 					else bang.AngularVelocity=Vector3.zero end
 				end
 			end
@@ -177,7 +215,8 @@ local function loopFling(on)
 	task.spawn(function()
 		while S.loopFling do
 			if S.sel then iyFling(S.sel)end
-			task.wait(2.6)
+			-- humanized wait between flings
+			task.wait(S.softFling and rand(2.0,3.2) or 2.5)
 		end
 	end)
 end
@@ -185,7 +224,7 @@ end
 local function massFling()
 	task.spawn(function()
 		for _,plr in ipairs(P:GetPlayers())do
-			if plr~=LP then iyFling(plr)task.wait(2.6)end
+			if plr~=LP then iyFling(plr)task.wait(rand(2.2,3.0))end
 		end
 		note("Fling","mass done")
 	end)
@@ -210,7 +249,8 @@ local function setFly(on)
 		if UIS:IsKeyDown(Enum.KeyCode.Space)then d+=Vector3.yAxis end
 		if UIS:IsKeyDown(Enum.KeyCode.LeftControl)then d-=Vector3.yAxis end
 		local hu=hum()if hu and d.Magnitude<.05 then d=hu.MoveDirection end
-		bv.Velocity=d.Magnitude>0 and d.Unit*(S.spd*2.6)or Vector3.zero
+		local mult=S.softFling and 2.0 or 2.6
+		bv.Velocity=d.Magnitude>0 and d.Unit*(S.spd*mult)or Vector3.zero
 		bg.CFrame=cam.CFrame
 	end))
 end
@@ -227,7 +267,9 @@ end))
 
 local function applyStats()
 	local h=hum()if h then
-		h.WalkSpeed=S.spd
+		-- soft mode caps walkspeed a bit to reduce instant speed flags
+		local cap=S.softFling and math.min(S.spd,80) or S.spd
+		h.WalkSpeed=cap
 		pcall(function()h.JumpPower=S.jmp end)
 		pcall(function()h.JumpHeight=S.jmp/7 end)
 	end
@@ -247,8 +289,8 @@ local function setSpin(on)
 	if spinBV then spinBV:Destroy()spinBV=nil end
 	if not on or not r then return end
 	spinBV=Instance.new("BodyAngularVelocity")
-	spinBV.Name="DT6_Spin"spinBV.MaxTorque=Vector3.new(0,math.huge,0)
-	spinBV.AngularVelocity=Vector3.new(0,15,0)spinBV.Parent=r
+	spinBV.Name="DT7_Spin"spinBV.MaxTorque=Vector3.new(0,math.huge,0)
+	spinBV.AngularVelocity=Vector3.new(0,12,0)spinBV.Parent=r
 end
 
 local function setRGB(on)
@@ -257,30 +299,11 @@ local function setRGB(on)
 	if not on then return end
 	rgbCon=RS.Heartbeat:Connect(function()
 		local c=LP.Character if not c then return end
-		local t=tick()*2
-		local col=Color3.fromHSV((t%5)/5,1,1)
+		local col=Color3.fromHSV((tick()*2%5)/5,1,1)
 		for _,p in ipairs(c:GetDescendants())do
-			if p:IsA("BasePart")and p.Name~="HumanoidRootPart"then
-				p.Color=col
-			end
+			if p:IsA("BasePart")and p.Name~="HumanoidRootPart"then p.Color=col end
 		end
 	end)
-end
-
-local function setTiny(on)
-	S.tiny=on
-	local h=hum()
-	if h then
-		pcall(function()
-			if on then h:ApplyDescriptionReset()
-				-- local scale attempt (visual often local only)
-				for _,p in ipairs(char():GetDescendants())do
-					if p:IsA("BasePart")then p.Size=p.Size*0.5 end
-				end
-			end
-		end)
-	end
-	note("Tiny",on and"local scale attempt"or"off - reset to undo")
 end
 
 local function tp(plr)local t,h=thrp(plr),hrp()if t and h then h.CFrame=t.CFrame*CFrame.new(0,0,3)end end
@@ -315,7 +338,7 @@ local function orbit(on)
 		while S.orbit do
 			local t,h=thrp(S.sel),hrp()
 			if t and h then
-				ang+=0.12
+				ang+=0.1
 				h.CFrame=CFrame.new(t.Position)+Vector3.new(math.cos(ang)*6,2,math.sin(ang)*6)
 			end
 			task.wait()
@@ -337,12 +360,28 @@ local function updateEsp()
 	end
 end
 
-bind(RS.Heartbeat:Connect(function()
+-- Advanced anti-fling: zero self velocity + disable collide vs high-spin others (local)
+bind(RS.PreSimulation:Connect(function()
 	if not S.anti or S.fling or S.walkFling then return end
 	local h=hrp()
-	if h and h.AssemblyLinearVelocity.Magnitude>180 then
-		h.AssemblyLinearVelocity=Vector3.zero
-		h.AssemblyAngularVelocity=Vector3.zero
+	if h then
+		if h.AssemblyLinearVelocity.Magnitude>120 then
+			h.AssemblyLinearVelocity=Vector3.zero
+			h.AssemblyAngularVelocity=Vector3.zero
+		end
+	end
+	-- if nearby player spinning hard, locally ignore collision with them
+	for _,plr in ipairs(P:GetPlayers())do
+		if plr==LP then continue end
+		local r=thrp(plr)
+		if r and r.AssemblyAngularVelocity.Magnitude>40 then
+			local c=plr.Character
+			if c then
+				for _,p in ipairs(c:GetChildren())do
+					if p:IsA("BasePart")then p.CanCollide=false end
+				end
+			end
+		end
 	end
 end))
 
@@ -360,22 +399,21 @@ local function spamTarget(on)
 	task.spawn(function()
 		while S.spam do
 			if S.sel then broadcastBubble(S.sel,(msgBox and msgBox.Text~=""and msgBox.Text)or BAD[math.random(1,#BAD)])end
-			task.wait(2.2)
+			task.wait(rand(2.0,2.8))
 		end
 	end)
 end
 
--- ===== PREMIUM DARK UI =====
-local G=Instance.new("ScreenGui")G.Name="DT6"G.ResetOnSpawn=false G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+-- UI
+local G=Instance.new("ScreenGui")G.Name="DT7"G.ResetOnSpawn=false G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 pcall(function()G.Parent=game:GetService("CoreGui")end)if not G.Parent then G.Parent=LP:WaitForChild("PlayerGui")end
 
 local M=Instance.new("Frame",G)
-M.Size=UDim2.new(0,320,0,460)M.Position=UDim2.new(.5,-160,.5,-230)
+M.Size=UDim2.new(0,320,0,470)M.Position=UDim2.new(.5,-160,.5,-235)
 M.BackgroundColor3=BG M.BorderSizePixel=0 M.Active=true M.Draggable=true
 Instance.new("UICorner",M).CornerRadius=UDim.new(0,14)
 local stroke=Instance.new("UIStroke",M)stroke.Color=ACCENT stroke.Thickness=1.4 stroke.Transparency=.25
 
--- top bar
 local top=Instance.new("Frame",M)
 top.Size=UDim2.new(1,0,0,40)top.BackgroundColor3=Color3.fromRGB(18,16,28)top.BorderSizePixel=0
 Instance.new("UICorner",top).CornerRadius=UDim.new(0,14)
@@ -384,16 +422,15 @@ topFix.Size=UDim2.new(1,0,0,14)topFix.Position=UDim2.new(0,0,1,-14)topFix.Backgr
 
 local Title=Instance.new("TextLabel",top)
 Title.Size=UDim2.new(1,-50,1,0)Title.Position=UDim2.new(0,14,0,0)
-Title.BackgroundTransparency=1 Title.Text="DELTA TROLL  v6"Title.Font=Enum.Font.GothamBold
+Title.BackgroundTransparency=1 Title.Text="DELTA TROLL  v7"Title.Font=Enum.Font.GothamBold
 Title.TextSize=15 Title.TextColor3=ACCENT Title.TextXAlignment=Enum.TextXAlignment.Left
 
 local XB=Instance.new("TextButton",top)
 XB.Size=UDim2.new(0,28,0,28)XB.Position=UDim2.new(1,-34,0,6)
-XB.BackgroundColor3=Color3.fromRGB(50,20,35)XB.Text="×"XB.TextColor3=Color3.fromRGB(255,120,140)
-XB.Font=Enum.Font.GothamBold XB.TextSize=16
+XB.BackgroundColor3=Color3.fromRGB(50,20,35)XB.Text="X"XB.TextColor3=Color3.fromRGB(255,120,140)
+XB.Font=Enum.Font.GothamBold XB.TextSize=14
 Instance.new("UICorner",XB).CornerRadius=UDim.new(0,8)
 
--- tabs
 local tabs=Instance.new("Frame",M)
 tabs.Size=UDim2.new(1,-16,0,32)tabs.Position=UDim2.new(0,8,0,46)tabs.BackgroundTransparency=1
 local tpad=Instance.new("UIListLayout",tabs)tpad.FillDirection=Enum.FillDirection.Horizontal tpad.Padding=UDim.new(0,5)
@@ -490,7 +527,6 @@ local function sld(parent,txt,a,b,def,cb)
 	bind(UIS.InputChanged:Connect(function(i)if hold then up(i.Position.X)end end))
 end
 
--- Troll
 local msgRow=Instance.new("Frame",pT)
 msgRow.Size=UDim2.new(1,0,0,36)msgRow.BackgroundColor3=Color3.fromRGB(28,26,40)
 Instance.new("UICorner",msgRow).CornerRadius=UDim.new(0,8)
@@ -506,7 +542,8 @@ btn(pT,"Send bubble (SYNC)",customSay)
 btn(pT,"Random bad bubble",targetSay)
 tog(pT,"Spam bubbles",false,spamTarget)
 tog(pT,"Sync to other DT users",true,function(v)S.sync=v end)
-btn(pT,"IY Fling selected",function()if S.sel then iyFling(S.sel)else note("Troll","select player")end end)
+tog(pT,"Soft fling (safer)",true,function(v)S.softFling=v note("Fling",v and"SOFT mode"or"RAGE mode")end)
+btn(pT,"Fling selected",function()if S.sel then iyFling(S.sel)else note("Troll","select player")end end)
 tog(pT,"Loop fling selected",false,loopFling)
 tog(pT,"Walk fling",false,setWalkFling)
 btn(pT,"Mass fling",massFling)
@@ -514,16 +551,14 @@ tog(pT,"Orbit selected",false,orbit)
 tog(pT,"Invisible",false,setInv)
 tog(pT,"RGB body",false,setRGB)
 
--- Move
 tog(pM,"Fly",false,setFly)
 tog(pM,"Noclip",false,function(v)S.noclip=v end)
 tog(pM,"Inf Jump",false,function(v)S.ijump=v end)
 tog(pM,"Spin",false,setSpin)
 tog(pM,"Click TP (Ctrl+Click)",false,function(v)S.clickTP=v end)
-sld(pM,"Speed",16,220,22,function(v)S.spd=v applyStats()end)
-sld(pM,"Jump",50,220,60,function(v)S.jmp=v applyStats()end)
+sld(pM,"Speed",16,200,20,function(v)S.spd=v applyStats()end)
+sld(pM,"Jump",50,200,55,function(v)S.jmp=v applyStats()end)
 
--- Players
 local pf=Instance.new("Frame",pP)
 pf.Size=UDim2.new(1,0,0,175)pf.BackgroundColor3=Color3.fromRGB(28,26,40)
 Instance.new("UICorner",pf).CornerRadius=UDim.new(0,8)
@@ -557,8 +592,7 @@ refresh()
 P.PlayerAdded:Connect(function()task.wait(.4)refresh()end)
 P.PlayerRemoving:Connect(function()task.wait(.2)refresh()end)
 
--- Misc
-tog(pX,"Anti-fling",true,function(v)S.anti=v end)
+tog(pX,"Anti-fling (advanced)",true,function(v)S.anti=v end)
 tog(pX,"Anti-AFK",true,function(v)S.antiAFK=v end)
 btn(pX,"Reset character",function()local h=hum()if h then h.Health=0 end end)
 local function kill()
@@ -581,4 +615,4 @@ LP.CharacterAdded:Connect(function()
 	if S.rgb then setRGB(true)end
 end)
 
-note("Delta Troll v6","Premium UI loaded")
+note("Delta Troll v7","Soft fling ON by default")

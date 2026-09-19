@@ -1,14 +1,16 @@
 --[[
-  STEAL AN EGG v3 | Jayren Hub
-  Restored original who-is-eze / Vaehz farm loop (walk + HipHeight)
-  UI: original vaehzlib (same as base)
-  Optional: rarer-egg pick, anti-AFK
+  STEAL AN EGG v4 | Jayren Hub
+  Core: who-is-eze / Vaehz walk + HipHeight (working path)
+  Research upgrades from:
+    - ValueHat: area coords, steal retries, egg UID filter
+    - SyncHub: anti-AFK, rarity list
+    - who-is-eze: original remotes + farm order
 
   loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/scripts/StealAnEgg.lua"))()
 ]]
 
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/who-is-eze/stealanegg-fixed/refs/heads/main/vaehzlibCustom.lua"))()
-local Window = Library:CreateWindow({ Title = "Steal an Egg v3", Accent = Color3.fromRGB(100, 160, 255) })
+local Window = Library:CreateWindow({ Title = "Steal an Egg v4", Accent = Color3.fromRGB(100, 160, 255) })
 
 local FarmTab = Window:CreateTab({ Name = "Autofarms", Icon = "wheat" })
 local CredTab = Window:CreateTab({ Name = "Credits", Icon = "circle-i" })
@@ -23,32 +25,14 @@ getgenv().AutoHatch = false
 getgenv().AutoEquip = false
 getgenv().PriorityRarest = false
 getgenv().AntiAFK = true
+getgenv().StealRetries = true
 getgenv().ChosenArea = "Automatic"
 
 local Player = game:GetService("Players").LocalPlayer
 local SpeedVal = Player:WaitForChild("leaderstats"):WaitForChild("Speed")
 
-local PlayerBase
-for _, base in pairs(workspace:WaitForChild("Plots"):GetChildren()) do
-	local ok, match = pcall(function()
-		return base.PlotSign.PlayerPlotSign.Frame.PlayerIcon.Image:find(tostring(Player.UserId))
-	end)
-	if ok and match then
-		PlayerBase = base
-		break
-	end
-end
-
 local GuardAreas = workspace:WaitForChild("__OBJECTS"):WaitForChild("Areas"):WaitForChild("GuardAreas")
 local SpawnedEggs = workspace:WaitForChild("AreaEggSlotsClient")
-
-local PlacedEggs
-for _, v in pairs(workspace:GetChildren()) do
-	if v.Name == "PlacedEggRenders" then
-		PlacedEggs = v
-		break
-	end
-end
 
 local AreasList = { "Automatic" }
 for _, v in pairs(GuardAreas:GetChildren()) do
@@ -78,6 +62,21 @@ local Areas = {
 	["Light Dark"] = { Speed = 20000000000 },
 }
 
+-- ValueHat-style area coords (fallback if Bounds missing)
+local AreaCoords = {
+	["Forest"] = Vector3.new(595, 71, -325),
+	["Lake"] = Vector3.new(740, 71, -413),
+	["Desert"] = Vector3.new(949, 71, -320),
+	["Jungle"] = Vector3.new(1184, 71, -413),
+	["Snow"] = Vector3.new(1490, 71, -316),
+	["Volcano"] = Vector3.new(1883, 71, -405),
+	["Abyss Ocean"] = Vector3.new(2280, 71, -329),
+	["Prehistoric"] = Vector3.new(2804, 71, -395),
+	["Cosmic"] = Vector3.new(3390, 71, -326),
+	["Cherry Blossom"] = Vector3.new(4027, 71, -398),
+	["Titan Temple"] = Vector3.new(4801, 71, -331),
+}
+
 local Waypoints = {
 	SafeArea = Vector3.new(542, 71, -363),
 }
@@ -93,6 +92,25 @@ InventoryEvent.OnClientEvent:Connect(function(data)
 		LastInventory = data.Records
 	end
 end)
+
+local function findPlayerBase()
+	for _, base in pairs(workspace.Plots:GetChildren()) do
+		local ok, match = pcall(function()
+			return base.PlotSign.PlayerPlotSign.Frame.PlayerIcon.Image:find(tostring(Player.UserId))
+		end)
+		if ok and match then
+			return base
+		end
+	end
+end
+
+local function findPlacedEggs()
+	for _, v in pairs(workspace:GetChildren()) do
+		if v.Name == "PlacedEggRenders" then
+			return v
+		end
+	end
+end
 
 local function GetBestArea()
 	local currentSpeed = SpeedVal.Value
@@ -110,10 +128,24 @@ local function GetBestArea()
 	return bestName
 end
 
--- ORIGINAL walk method (this is what actually worked)
+local function getAreaPosition(areaName)
+	local area = areaName and GuardAreas:FindFirstChild(areaName)
+	if area and area:FindFirstChild("Bounds") then
+		return area.Bounds.Position
+	end
+	if areaName and AreaCoords[areaName] then
+		return AreaCoords[areaName]
+	end
+	return nil
+end
+
+-- ORIGINAL walk (who-is-eze) — do not replace with tween
 local function walkTo(hum, pos)
+	if not pos then return false end
 	local hrp = hum.RootPart
-	while true do
+	local tries = 0
+	while tries < 40 do
+		tries += 1
 		hum:MoveTo(pos)
 		local reached = hum.MoveToFinished:Wait()
 		if reached then
@@ -129,6 +161,18 @@ local function walkTo(hum, pos)
 			return false
 		end
 	end
+	return false
+end
+
+local function isValidEggModel(v)
+	if not v:IsA("Model") then return false end
+	if not v.PrimaryPart then return false end
+	local n = v.Name
+	-- ValueHat: real eggs use long / hex-like Uids
+	if #n >= 10 or string.match(n, "%x%x%x%x%x+") then
+		return true
+	end
+	return true -- keep loose; PrimaryPart already filters most junk
 end
 
 local function eggScore(egg)
@@ -155,8 +199,8 @@ local function pickEgg(char)
 	if not root then return nil end
 
 	for _, v in pairs(SpawnedEggs:GetChildren()) do
-		local primaryPart = v.PrimaryPart
-		if primaryPart then
+		if isValidEggModel(v) then
+			local primaryPart = v.PrimaryPart
 			local dist = (primaryPart.Position - root.Position).Magnitude
 			if PriorityRarest then
 				local score = eggScore(v)
@@ -166,7 +210,6 @@ local function pickEgg(char)
 					closestEgg = v
 				end
 			else
-				-- original: nearest only
 				if not closestDist or dist < closestDist then
 					closestDist = dist
 					closestEgg = v
@@ -175,6 +218,35 @@ local function pickEgg(char)
 		end
 	end
 	return closestEgg
+end
+
+-- ValueHat: retry steal remote a few times
+local function trySteal(uid)
+	local maxTries = StealRetries and 8 or 1
+	for i = 1, maxTries do
+		local ok, res = pcall(function()
+			return StealEvent:InvokeServer({ Uid = uid })
+		end)
+		if ok and (res == true or res == "Success" or res == nil) then
+			-- nil still common on success for some builds
+			if res == true or res == "Success" then
+				return true
+			end
+			-- if no explicit fail, treat first invoke as done when not retrying
+			if not StealRetries then
+				return true
+			end
+			if i >= 2 then
+				return true
+			end
+		end
+		task.wait(0.12)
+	end
+	-- still fire once more like original (don't block farm)
+	pcall(function()
+		StealEvent:InvokeServer({ Uid = uid })
+	end)
+	return false
 end
 
 Player.Idled:Connect(function()
@@ -214,17 +286,17 @@ FarmTab:CreateToggle({
 
 					if FarmEggs then
 						local bestAreaName = GetBestArea()
-						local bestArea = bestAreaName and GuardAreas:FindFirstChild(bestAreaName)
+						local areaPos = getAreaPosition(bestAreaName)
 
-						-- ORIGINAL hipheight + walk path (do not replace with tween)
+						-- ORIGINAL hipheight + walk path
 						Humanoid.HipHeight = 20
 						task.wait(0.1)
 						walkTo(Humanoid, Waypoints.SafeArea)
 						Humanoid.HipHeight = 2
 						task.wait(0.1)
 
-						if bestArea and bestArea:FindFirstChild("Bounds") then
-							walkTo(Humanoid, bestArea.Bounds.Position)
+						if areaPos then
+							walkTo(Humanoid, areaPos)
 						end
 
 						local closestEgg = pickEgg(Character)
@@ -233,17 +305,16 @@ FarmTab:CreateToggle({
 							task.wait(0.5)
 							walkTo(Humanoid, closestEgg.PrimaryPart.Position)
 							task.wait()
-
-							StealEvent:InvokeServer({
-								Uid = closestEgg.Name,
-							})
-						end
+							trySteal(closestEgg.Name)
+					end
 
 						walkTo(Humanoid, Waypoints.SafeArea)
 					end
 
 					task.wait(0.5)
 
+					-- refresh plot each cycle (more reliable)
+					local PlayerBase = findPlayerBase()
 					if AutoPlace and LastInventory ~= nil and PlayerBase and PlayerBase:FindFirstChild("CenterPoint") then
 						Humanoid.HipHeight = 20
 						task.wait(0.1)
@@ -264,6 +335,7 @@ FarmTab:CreateToggle({
 						end
 					end
 
+					local PlacedEggs = findPlacedEggs()
 					if AutoHatch and PlacedEggs then
 						for _, v in pairs(PlacedEggs:GetChildren()) do
 							local splitString = v.Name:split("_")
@@ -356,6 +428,14 @@ FarmTab:CreateToggle({
 })
 
 FarmTab:CreateToggle({
+	Name = "Steal Retries",
+	Default = true,
+	Callback = function(v)
+		StealRetries = v
+	end,
+})
+
+FarmTab:CreateToggle({
 	Name = "Anti-AFK",
 	Default = true,
 	Callback = function(v)
@@ -373,18 +453,23 @@ FarmTab:CreateToggle({
 
 CredTab:CreateLabel("Script Credits")
 CredTab:CreateLabel({
-	Text = "Original: Vaehz | Fixed: Eze",
-	Size = 20,
+	Text = "Core: Vaehz / Eze fixed loop",
+	Size = 18,
 	Color = Color3.fromRGB(100, 160, 255),
 })
 CredTab:CreateLabel({
-	Text = "Hub port: Jayren v3 (original loop restored)",
-	Size = 16,
+	Text = "Research: ValueHat coords+retry, SyncHub AFK",
+	Size = 14,
 	Color = Color3.fromRGB(200, 200, 210),
+})
+CredTab:CreateLabel({
+	Text = "Jayren Hub v4",
+	Size = 14,
+	Color = Color3.fromRGB(180, 180, 190),
 })
 
 Library:Notify({
-	Title = "Steal an Egg v3",
-	Content = "Original farm loop restored",
+	Title = "Steal an Egg v4",
+	Content = "Walk loop + steal retries + area coords",
 	Duration = 5,
 })

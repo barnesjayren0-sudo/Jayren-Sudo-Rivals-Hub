@@ -1,16 +1,14 @@
 --[[
-  STEAL AN EGG v4 | Jayren Hub
-  Core: who-is-eze / Vaehz walk + HipHeight (working path)
-  Research upgrades from:
-    - ValueHat: area coords, steal retries, egg UID filter
-    - SyncHub: anti-AFK, rarity list
-    - who-is-eze: original remotes + farm order
+  STEAL AN EGG v5 | Jayren Hub
+  Default: Walk + HipHeight (who-is-eze)
+  Optional Instant Steal: Potato pattern
+    save CFrame -> warp on egg -> hold (replicate) -> AskFieldEggCarry -> warp back
 
   loadstring(game:HttpGet("https://raw.githubusercontent.com/barnesjayren0-sudo/Jayren-Sudo-Rivals-Hub/main/scripts/StealAnEgg.lua"))()
 ]]
 
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/who-is-eze/stealanegg-fixed/refs/heads/main/vaehzlibCustom.lua"))()
-local Window = Library:CreateWindow({ Title = "Steal an Egg v4", Accent = Color3.fromRGB(100, 160, 255) })
+local Window = Library:CreateWindow({ Title = "Steal an Egg v5", Accent = Color3.fromRGB(100, 160, 255) })
 
 local FarmTab = Window:CreateTab({ Name = "Autofarms", Icon = "wheat" })
 local CredTab = Window:CreateTab({ Name = "Credits", Icon = "circle-i" })
@@ -26,6 +24,8 @@ getgenv().AutoEquip = false
 getgenv().PriorityRarest = false
 getgenv().AntiAFK = true
 getgenv().StealRetries = true
+getgenv().InstantSteal = false -- Potato TP mode (OFF by default)
+getgenv().TpHold = 0.35 -- seconds on egg before carry (server needs this)
 getgenv().ChosenArea = "Automatic"
 
 local Player = game:GetService("Players").LocalPlayer
@@ -62,7 +62,6 @@ local Areas = {
 	["Light Dark"] = { Speed = 20000000000 },
 }
 
--- ValueHat-style area coords (fallback if Bounds missing)
 local AreaCoords = {
 	["Forest"] = Vector3.new(595, 71, -325),
 	["Lake"] = Vector3.new(740, 71, -413),
@@ -139,7 +138,6 @@ local function getAreaPosition(areaName)
 	return nil
 end
 
--- ORIGINAL walk (who-is-eze) — do not replace with tween
 local function walkTo(hum, pos)
 	if not pos then return false end
 	local hrp = hum.RootPart
@@ -164,15 +162,20 @@ local function walkTo(hum, pos)
 	return false
 end
 
+-- Potato: single hop, zero velocity
+local function warpTo(hp, cf)
+	if not hp or not cf then return end
+	pcall(function()
+		hp.AssemblyLinearVelocity = Vector3.zero
+		hp.AssemblyAngularVelocity = Vector3.zero
+		hp.CFrame = cf
+	end)
+end
+
 local function isValidEggModel(v)
 	if not v:IsA("Model") then return false end
 	if not v.PrimaryPart then return false end
-	local n = v.Name
-	-- ValueHat: real eggs use long / hex-like Uids
-	if #n >= 10 or string.match(n, "%x%x%x%x%x+") then
-		return true
-	end
-	return true -- keep loose; PrimaryPart already filters most junk
+	return true
 end
 
 local function eggScore(egg)
@@ -220,32 +223,84 @@ local function pickEgg(char)
 	return closestEgg
 end
 
--- ValueHat: retry steal remote a few times
+-- Prefer egg near a given area center when Instant mode
+local function pickEggNear(char, nearPos)
+	if not nearPos then return pickEgg(char) end
+	local closestEgg, closestDist, bestScore = nil, nil, -1
+	for _, v in pairs(SpawnedEggs:GetChildren()) do
+		if isValidEggModel(v) then
+			local primaryPart = v.PrimaryPart
+			local dist = (primaryPart.Position - nearPos).Magnitude
+			if dist > 250 then continue end
+			if PriorityRarest then
+				local score = eggScore(v)
+				if score > bestScore or (score == bestScore and (not closestDist or dist < closestDist)) then
+					bestScore = score
+					closestDist = dist
+					closestEgg = v
+				end
+			else
+				if not closestDist or dist < closestDist then
+					closestDist = dist
+					closestEgg = v
+				end
+			end
+		end
+	end
+	return closestEgg or pickEgg(char)
+end
+
 local function trySteal(uid)
 	local maxTries = StealRetries and 8 or 1
 	for i = 1, maxTries do
 		local ok, res = pcall(function()
 			return StealEvent:InvokeServer({ Uid = uid })
 		end)
-		if ok and (res == true or res == "Success" or res == nil) then
-			-- nil still common on success for some builds
-			if res == true or res == "Success" then
-				return true
-			end
-			-- if no explicit fail, treat first invoke as done when not retrying
-			if not StealRetries then
-				return true
-			end
-			if i >= 2 then
-				return true
-			end
+		if ok and (res == true or res == "Success") then
+			return true
+		end
+		if ok and res == nil and i >= 2 then
+			return true
+		end
+		if not StealRetries then
+			return ok
 		end
 		task.wait(0.12)
 	end
-	-- still fire once more like original (don't block farm)
 	pcall(function()
 		StealEvent:InvokeServer({ Uid = uid })
 	end)
+	return false
+end
+
+--[[
+  Potato Instant Steal:
+  save -> warp egg (+Y) -> hold (server sees position) -> carry -> warp back
+  Longer hold on retry if "Get closer" style fails.
+]]
+local function instantStealEgg(egg)
+	local char = Player.Character
+	if not char or not egg or not egg.PrimaryPart then return false end
+	local hp = char:FindFirstChild("HumanoidRootPart")
+	if not hp then return false end
+
+	local saved = hp.CFrame
+	local eggCf = egg.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+	local hold = tonumber(TpHold) or 0.35
+	local uid = egg.Name
+
+	for attempt = 1, 3 do
+		warpTo(hp, eggCf)
+		task.wait(hold + (attempt - 1) * 0.2) -- longer hold each retry
+		local ok = trySteal(uid)
+		if ok then
+			warpTo(hp, saved)
+			return true
+		end
+		task.wait(0.1)
+	end
+
+	warpTo(hp, saved)
 	return false
 end
 
@@ -272,6 +327,7 @@ FarmTab:CreateToggle({
 					if not Character then return end
 					local Humanoid = Character:FindFirstChildOfClass("Humanoid")
 					if not Humanoid then return end
+					local hrp = Character:FindFirstChild("HumanoidRootPart")
 
 					Noclipping = RunService.Stepped:Connect(function()
 						if AutoFarm and Player.Character ~= nil then
@@ -288,37 +344,57 @@ FarmTab:CreateToggle({
 						local bestAreaName = GetBestArea()
 						local areaPos = getAreaPosition(bestAreaName)
 
-						-- ORIGINAL hipheight + walk path
-						Humanoid.HipHeight = 20
-						task.wait(0.1)
-						walkTo(Humanoid, Waypoints.SafeArea)
-						Humanoid.HipHeight = 2
-						task.wait(0.1)
+						if InstantSteal then
+							-- Potato path: optional warp near area, pick egg, instant steal cycle
+							if areaPos and hrp then
+								warpTo(hrp, CFrame.new(areaPos + Vector3.new(0, 3, 0)))
+								task.wait(0.15)
+							end
+							local egg = pickEggNear(Character, areaPos)
+							if egg then
+								instantStealEgg(egg)
+							end
+							-- soft return to safe
+							if hrp then
+								warpTo(hrp, CFrame.new(Waypoints.SafeArea + Vector3.new(0, 3, 0)))
+							end
+						else
+							-- ORIGINAL walk path
+							Humanoid.HipHeight = 20
+							task.wait(0.1)
+							walkTo(Humanoid, Waypoints.SafeArea)
+							Humanoid.HipHeight = 2
+							task.wait(0.1)
 
-						if areaPos then
-							walkTo(Humanoid, areaPos)
+							if areaPos then
+								walkTo(Humanoid, areaPos)
+							end
+
+							local closestEgg = pickEgg(Character)
+							if closestEgg and closestEgg.PrimaryPart then
+								walkTo(Humanoid, closestEgg.PrimaryPart.Position)
+								task.wait(0.5)
+								walkTo(Humanoid, closestEgg.PrimaryPart.Position)
+								task.wait()
+								trySteal(closestEgg.Name)
+							end
+
+							walkTo(Humanoid, Waypoints.SafeArea)
 						end
-
-						local closestEgg = pickEgg(Character)
-						if closestEgg and closestEgg.PrimaryPart then
-							walkTo(Humanoid, closestEgg.PrimaryPart.Position)
-							task.wait(0.5)
-							walkTo(Humanoid, closestEgg.PrimaryPart.Position)
-							task.wait()
-							trySteal(closestEgg.Name)
-					end
-
-						walkTo(Humanoid, Waypoints.SafeArea)
 					end
 
 					task.wait(0.5)
 
-					-- refresh plot each cycle (more reliable)
 					local PlayerBase = findPlayerBase()
 					if AutoPlace and LastInventory ~= nil and PlayerBase and PlayerBase:FindFirstChild("CenterPoint") then
-						Humanoid.HipHeight = 20
-						task.wait(0.1)
-						walkTo(Humanoid, PlayerBase.CenterPoint.Position)
+						if InstantSteal and hrp then
+							warpTo(hrp, PlayerBase.CenterPoint.CFrame + Vector3.new(0, 2, 0))
+							task.wait(0.2)
+						else
+							Humanoid.HipHeight = 20
+							task.wait(0.1)
+							walkTo(Humanoid, PlayerBase.CenterPoint.Position)
+						end
 
 						for i, _ in pairs(LastInventory) do
 							local randomArea = CFrame.new(
@@ -340,9 +416,14 @@ FarmTab:CreateToggle({
 						for _, v in pairs(PlacedEggs:GetChildren()) do
 							local splitString = v.Name:split("_")
 							if splitString[1] == tostring(Player.UserId) and v.PrimaryPart then
-								Humanoid.HipHeight = 20
-								task.wait(0.1)
-								walkTo(Humanoid, v.PrimaryPart.Position)
+								if InstantSteal and hrp then
+									warpTo(hrp, v.PrimaryPart.CFrame + Vector3.new(0, 2, 0))
+									task.wait(0.15)
+								else
+									Humanoid.HipHeight = 20
+									task.wait(0.1)
+									walkTo(Humanoid, v.PrimaryPart.Position)
+								end
 
 								local res = HatchEvent:InvokeServer(splitString[2])
 								if res then
@@ -383,6 +464,14 @@ FarmTab:CreateToggle({
 	Default = false,
 	Callback = function(v)
 		FarmEggs = v
+	end,
+})
+
+FarmTab:CreateToggle({
+	Name = "Instant Steal (TP)",
+	Default = false,
+	Callback = function(v)
+		InstantSteal = v
 	end,
 })
 
@@ -453,23 +542,23 @@ FarmTab:CreateToggle({
 
 CredTab:CreateLabel("Script Credits")
 CredTab:CreateLabel({
-	Text = "Core: Vaehz / Eze fixed loop",
+	Text = "Walk core: Vaehz / Eze",
 	Size = 18,
 	Color = Color3.fromRGB(100, 160, 255),
 })
 CredTab:CreateLabel({
-	Text = "Research: ValueHat coords+retry, SyncHub AFK",
+	Text = "Instant TP: Potato hold+return pattern",
 	Size = 14,
 	Color = Color3.fromRGB(200, 200, 210),
 })
 CredTab:CreateLabel({
-	Text = "Jayren Hub v4",
+	Text = "Jayren Hub v5",
 	Size = 14,
 	Color = Color3.fromRGB(180, 180, 190),
 })
 
 Library:Notify({
-	Title = "Steal an Egg v4",
-	Content = "Walk loop + steal retries + area coords",
+	Title = "Steal an Egg v5",
+	Content = "Walk default | Instant Steal optional",
 	Duration = 5,
 })
